@@ -68,10 +68,10 @@ metadata:
 
 - [x] **Step 1 — eval.py ✅** `scripts/eval.py` 完成，drivers: random/zero/reach/drq；输出 JSONL + 聚合统计。验证：walk-v0 + DR.Q seed 0 ar=2 ep 10 跑出 success=3/10 mean_return≈530（论文 [371,652] 内）
 - [x] **Step 2 — DR.Q baseline ✅ 超额完成** `scripts/sweep_drq.sh` 扫 28 task seed 0 N=5; `scripts/sweep_drq_multiseed.sh` 对候选扩 N=10×3seeds。**9/9 task ≥50%（5 个 100%）**：h1-crawl/pole/sit_simple/stand 100%, h1hand-sit_simple 100%, h1-run/sit_hard 97%, h1hand-sit_hard 77%, h1-walk 73%。**用户 ≥3 task 目标超 3 倍完成**。结果在 `results/drq_multiseed/*.jsonl`
-- [ ] Step 3 — reach skill manipulation baseline
-- [ ] Step 4 — window Dreamer training
+- [x] **Step 4(替代) — 自训 H1-walk-v0 流水线验证 ✅** patch DR.Q (main.py:222 + DRQ.py:278) + `scripts/train_watcher.py` + `scripts/ckpt_eval_loop.py` 全链路。**500k 步 / 6.6h wall on RTX 4090**。最终 ckpt: **success_rate 90% N=10 ep, mean_return 801**（公开 seed 0 仅 ~530 / ~30%）。**首个自训通关 ckpt**。Ckpt 备份在 `runs/h1_walk_pilot/DRQ/checkpoint/DRQ+HBench-h1-walk-v0+0/`。G1-walk 早停因 torque 控制 1M 步达不到 success_bar（备份在 `runs/g1_pilot_v1_dead_at_330k/`）。
+- [ ] Step 3 — reach skill manipulation baseline（低优先级）
 - [ ] Step 5 — UMI-on-Air cabinet adapter
-- [ ] Step 6 — HF release
+- [ ] **Step 6 — HF release** 候选: `wsagi/humanoidbench-h1-walk-v0-drq-selftrained` 含 policy.pt + encoder.pt + agent_var.npy（9 个 .pt，~80MB），mean 801 success 90% N=10 — **比公开 ckpt 强**，值得发回 carlosferrazza/humanoid-bench Issue #66
 
 ### Compact 后新发现 / Findings post-compact
 
@@ -105,3 +105,9 @@ ls ~/.cache/huggingface/hub/models--dmux--DR.Q/snapshots/*/
 - 不要再加 `--local-dir` 到 HF download —— 默认 cache 路径是规则
 - 不要用 `--seeds 3` 跑 DR.Q —— seed 命名是 0/10/.../90，要 `--seed_list 0,10,20`
 - 不要漏 `--action_repeat 2` —— DR.Q 训练时 HBenchPreprocessing wrap 了 ActionRepeat(2)，eval 不加 return 减半
+
+### DR.Q submodule patch 走 patches/ 目录
+
+`dependencies/dr-q/` 是上游 submodule，本地有 2 处改动（让 agent.save 真存权重 + 跳过 buffer 写盘）。补丁集中在 `patches/dr-q-save-agent.patch`，clone 后跑 `bash patches/apply.sh` 即可，幂等。**不再手改 submodule 源码**。
+
+**Why:** 用户首次启动 G1 训练跑了 50min 才发现 ckpt 没存权重——上游 main.py 注释掉了 `agent.save`。修过来后又改了 DRQ.py 跳过 367MB buffer 写盘。这两个改动通过 patch 文件维护比记到 memory 里更可靠（apply.sh 幂等检查 + git 可还原）。

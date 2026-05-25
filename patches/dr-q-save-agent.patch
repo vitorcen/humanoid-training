@@ -1,0 +1,29 @@
+diff --git a/DRQ/DRQ.py b/DRQ/DRQ.py
+index dc906b4..9e6b857 100644
+--- a/DRQ/DRQ.py
++++ b/DRQ/DRQ.py
+@@ -275,7 +275,8 @@ class Agent:
+         var_dict = {k: self.__dict__[k] for k in vars}
+         np.save(f'{save_folder}/agent_var.npy', var_dict)
+ 
+-        self.replay_buffer.save(save_folder)
++        # patched 2026-05-25: skip buffer save (367 MB × N ckpts = disk blowup; eval doesn't need it)
++        # self.replay_buffer.save(save_folder)
+ 
+ 
+     def load(self, save_folder: str):
+diff --git a/DRQ/main.py b/DRQ/main.py
+index b680446..6949cf9 100644
+--- a/DRQ/main.py
++++ b/DRQ/main.py
+@@ -218,8 +218,8 @@ def save_experiment(exp: OnlineExperiment):
+     np.save(f'{exp.save_folder}/{exp.project_name}/exp_var.npy', var_dict)
+     # Save eval
+     np.savetxt(f'{exp.save_folder}/{exp.project_name}.txt', exp.evals, fmt='%.14f')
+-    # enable this if you want to save agent
+-    # exp.agent.save(f'{exp.save_folder}/{exp.project_name}')
++    # patched 2026-05-25: original code commented this out; we need weights for eval/GUI
++    exp.agent.save(f'{exp.save_folder}/{exp.project_name}')
+ 
+     exp.logger.title('Saved experiment')
+ 
