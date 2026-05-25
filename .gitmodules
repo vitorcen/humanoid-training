@@ -1,3 +1,6 @@
 [submodule "dependencies/humanoid-bench"]
 	path = dependencies/humanoid-bench
 	url = https://github.com/carlosferrazza/humanoid-bench
+[submodule "dependencies/dr-q"]
+	path = dependencies/dr-q
+	url = https://github.com/dmksjfl/DR.Q

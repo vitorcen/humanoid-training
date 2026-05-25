@@ -1,1 +1,2 @@
 - [Commit style](feedback_commit_style.md) — user commits manually; offer two short English Conventional Commit candidates at commit points
+- [Bilingual docs](feedback_bilingual_docs.md) — docs/notebooks pair Chinese with italic English captions; canonical reference is `isaaclab-experience/README.md`
