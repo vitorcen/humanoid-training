@@ -1,0 +1,1 @@
+- [Commit style](feedback_commit_style.md) — user commits manually; offer two short English Conventional Commit candidates at commit points

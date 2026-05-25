@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>人形机器人 Motion 数据集调研 / Humanoid Motion Dataset Survey</title>
+<style>
+:root {
+  --fg: #1a1a1a;
+  --bg: #fafaf7;
+  --muted: #6b6b6b;
+  --accent: #c0392b;
+  --accent2: #2c5aa0;
+  --good: #27ae60;
+  --warn: #e67e22;
+  --bad: #c0392b;
+  --code-bg: #f4f2ed;
+  --border: #d8d4cb;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--fg);
+  background: var(--bg);
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 40px 80px;
+}
+h1 {
+  font-size: 26px;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 8px;
+  margin-top: 0;
+}
+h2 {
+  font-size: 21px;
+  margin-top: 40px;
+  color: var(--accent2);
+  border-left: 4px solid var(--accent2);
+  padding-left: 12px;
+}
+h3 {
+  font-size: 17px;
+  margin-top: 28px;
+  color: #333;
+}
+h4 {
+  font-size: 15px;
+  margin-top: 20px;
+  color: #555;
+}
+.subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: -10px;
+}
+.tldr {
+  background: #fff5e6;
+  border-left: 4px solid var(--warn);
+  padding: 12px 16px;
+  margin: 16px 0 28px;
+  border-radius: 4px;
+}
+.tldr strong { color: var(--accent); }
+.callout {
+  background: #eaf3fb;
+  border-left: 4px solid var(--accent2);
+  padding: 10px 14px;
+  margin: 14px 0;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.warn {
+  background: #fdf0e8;
+  border-left-color: var(--warn);
+}
+.bad {
+  background: #fbecea;
+  border-left-color: var(--bad);
+}
+.good {
+  background: #eaf6ed;
+  border-left-color: var(--good);
+}
+code {
+  background: var(--code-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+pre {
+  background: var(--code-bg);
+  padding: 12px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+  border: 1px solid var(--border);
+}
+pre code { background: none; padding: 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 14px 0;
+  font-size: 13.5px;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: #efece4;
+  font-weight: 600;
+}
+tr:nth-child(2n) { background: #fbfaf6; }
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.tag-green { background: #d5f0db; color: #1e7d3a; }
+.tag-yellow { background: #fcecc7; color: #8a6100; }
+.tag-red { background: #f9d6d0; color: #8a2a1d; }
+.tag-blue { background: #d3e3f5; color: #1d4275; }
+.tag-gray { background: #e5e3dc; color: #555; }
+.medal { font-size: 16px; margin-right: 3px; }
+.svg-wrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  margin: 16px 0;
+  text-align: center;
+}
+.svg-wrap svg { max-width: 100%; height: auto; }
+.svg-caption {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+.en {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-style: italic;
+}
+.path-card {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 14px 0;
+}
+.path-card.recommended { border-color: var(--good); background: #f3faf5; }
+.path-card.medium { border-color: var(--warn); background: #fdf6ed; }
+.path-card.hard { border-color: var(--accent2); background: #f0f5fc; }
+.path-card h4 { margin-top: 0; }
+hr { border: none; border-top: 1px dashed var(--border); margin: 32px 0; }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+.kbd {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid #bbb;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: monospace;
+  font-size: 12px;
+}
+.foot {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<h1>人形机器人 Motion 数据集调研：功夫 / 舞蹈 / 多 Prompt 实验</h1>
+<div class="subtitle">Humanoid Motion Dataset Survey — Kungfu / Dance / Multi-Prompt Experiments &nbsp; · &nbsp; 2026-05-22</div>
+
+<div class="tldr">
+<strong>TL;DR</strong>　目标 = 训一个 humanoid 模型，下不同 prompt 做不同动作（功夫、舞蹈、走跑跳）。<br>
+KungfuBot 自带数据集只有 <b>7 段 / 62 秒</b>，必须找公开数据集补量。本调研横评 7 个候选，给出三条复刻路径：<br>
+<span class="medal">🥇</span><b>Path A</b>：LAFAN1（Unitree 已 G1 retarget）+ KungfuBot 原生 RL pipeline，<b>1–4 天</b>能验。<br>
+<span class="medal">🥈</span><b>Path B</b>：HumanML3D（14k motion + 自然语言 caption）→ SMPL retarget → RL，<b>1 周</b>。<br>
+<span class="medal">🥉</span><b>Path C</b>：HumanML3D + IsaacSim 多机位渲染 → GR00T N1.7 VLA，<b>2–3 周</b>真做语言 VLA。<br>
+<span class="en">Start with Path A. Don't jump to VLA until prompt-conditioned RL works.</span>
+</div>
+
+<h2>1. 背景：为什么 KungfuBot 自带数据不够</h2>
+
+<table>
+<tr><th>字段</th><th>shape</th><th>含义</th></tr>
+<tr><td><code>root_trans_offset</code></td><td>(T, 3)</td><td>根节点位置</td></tr>
+<tr><td><code>pose_aa</code></td><td>(T, 27, 3)</td><td>SMPL axis-angle</td></tr>
+<tr><td><code>dof</code></td><td>(T, 23)</td><td>G1 23-DOF 关节角</td></tr>
+<tr><td><code>root_rot</code></td><td>(T, 4)</td><td>根姿态四元数</td></tr>
+<tr><td><code>contact_mask</code></td><td>(T, 2)</td><td>双足接触地面 mask</td></tr>
+<tr><td><code>fps</code></td><td>scalar</td><td>30</td></tr>
+</table>
+
+<p>KungfuBot <code>example/motion_data/</code> 里只有 7 个 pkl，共 <b>1862 帧 / 62 秒 @ 30 fps</b>：</p>
+
+<table>
+<tr><th>motion</th><th>frames</th><th>duration</th></tr>
+<tr><td>Bruce_Lee_pose</td><td>330</td><td>11.0s</td></tr>
+<tr><td>Charleston_dance</td><td>610</td><td>20.3s</td></tr>
+<tr><td>Hooks_punch</td><td>175</td><td>5.8s</td></tr>
+<tr><td>Horse-stance_pose</td><td>210</td><td>7.0s</td></tr>
+<tr><td>Horse-stance_punch</td><td>200</td><td>6.7s</td></tr>
+<tr><td>Roundhouse_kick</td><td>158</td><td>5.3s</td></tr>
+<tr><td>Side_kick</td><td>179</td><td>6.0s</td></tr>
+<tr><td><b>合计 / Total</b></td><td><b>1862</b></td><td><b>62.1s</b></td></tr>
+</table>
+
+<div class="callout warn">
+<b>问题：</b>7 段 + 无文本标注，模型只能"背"而不能"理解"。要做<b>多 prompt 泛化</b>，必须扩大量级 + 引入语义标签。<br>
+<span class="en">7 motions w/ no captions = lookup table, not generalization. Need scale + text.</span>
+</div>
+
+<h2>2. 关键技术分水岭：右上角象限</h2>
+
+<p>所有候选数据集按 <b>「是否有文本」</b> × <b>「是否有视频」</b> 划分：</p>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, sans-serif" font-size="13">
+  <!-- axes -->
+  <line x1="60" y1="360" x2="680" y2="360" stroke="#333" stroke-width="2"/>
+  <line x1="60" y1="40" x2="60" y2="360" stroke="#333" stroke-width="2"/>
+  <polygon points="680,360 670,355 670,365" fill="#333"/>
+  <polygon points="60,40 55,50 65,50" fill="#333"/>
+  <text x="690" y="365" font-size="12">有 video →</text>
+  <text x="40" y="35" font-size="12">有 text ↑</text>
+
+  <!-- quadrant midlines -->
+  <line x1="370" y1="40" x2="370" y2="360" stroke="#bbb" stroke-dasharray="4 4"/>
+  <line x1="60" y1="200" x2="680" y2="200" stroke="#bbb" stroke-dasharray="4 4"/>
+
+  <!-- quadrant labels -->
+  <text x="200" y="60" fill="#888" font-size="11">Q2: 有 text 无 video</text>
+  <text x="490" y="60" fill="#888" font-size="11">Q1 (理想): 有 text 有 video ⭐</text>
+  <text x="200" y="220" fill="#888" font-size="11">Q3: 都没有</text>
+  <text x="490" y="220" fill="#888" font-size="11">Q4: 有 video 无 text</text>
+
+  <!-- datasets -->
+  <!-- Q2: text yes, video no -->
+  <g>
+    <circle cx="200" cy="120" r="36" fill="#d5f0db" stroke="#1e7d3a" stroke-width="2"/>
+    <text x="200" y="118" text-anchor="middle" font-weight="600">HumanML3D</text>
+    <text x="200" y="135" text-anchor="middle" font-size="11">14k+text</text>
+  </g>
+  <g>
+    <circle cx="310" cy="150" r="30" fill="#fcecc7" stroke="#8a6100" stroke-width="2"/>
+    <text x="310" y="148" text-anchor="middle" font-weight="600">100STYLE</text>
+    <text x="310" y="163" text-anchor="middle" font-size="11">style tag</text>
+  </g>
+
+  <!-- Q1: text yes, video yes (rare!) -->
+  <g>
+    <circle cx="540" cy="130" r="42" fill="#d5f0db" stroke="#1e7d3a" stroke-width="2"/>
+    <text x="540" y="125" text-anchor="middle" font-weight="600">Motion-X</text>
+    <text x="540" y="142" text-anchor="middle" font-size="11">81k+text+vid*</text>
+    <text x="540" y="160" text-anchor="middle" font-size="10" fill="#8a2a1d">*野生视频</text>
+  </g>
+
+  <!-- Q3: neither -->
+  <g>
+    <circle cx="180" cy="290" r="38" fill="#f9d6d0" stroke="#8a2a1d" stroke-width="2"/>
+    <text x="180" y="288" text-anchor="middle" font-weight="600">AMASS</text>
+    <text x="180" y="305" text-anchor="middle" font-size="11">11k mocap</text>
+  </g>
+  <g>
+    <circle cx="290" cy="320" r="32" fill="#f9d6d0" stroke="#8a2a1d" stroke-width="2"/>
+    <text x="290" y="318" text-anchor="middle" font-weight="600">KungfuBot</text>
+    <text x="290" y="333" text-anchor="middle" font-size="11">7 段</text>
+  </g>
+
+  <!-- Q4: video yes, text no -->
+  <g>
+    <circle cx="500" cy="290" r="40" fill="#fcecc7" stroke="#8a6100" stroke-width="2"/>
+    <text x="500" y="285" text-anchor="middle" font-weight="600">LAFAN1</text>
+    <text x="500" y="300" text-anchor="middle" font-size="11">G1 已 retarget</text>
+    <text x="500" y="315" text-anchor="middle" font-size="10">片段名当 tag</text>
+  </g>
+  <g>
+    <circle cx="610" cy="320" r="30" fill="#fcecc7" stroke="#8a6100" stroke-width="2"/>
+    <text x="610" y="318" text-anchor="middle" font-weight="600">AIST++</text>
+    <text x="610" y="333" text-anchor="middle" font-size="11">舞蹈+音乐</text>
+  </g>
+
+  <!-- legend -->
+  <rect x="60" y="385" width="14" height="14" fill="#d5f0db" stroke="#1e7d3a"/>
+  <text x="80" y="397">推荐 Recommended</text>
+  <rect x="200" y="385" width="14" height="14" fill="#fcecc7" stroke="#8a6100"/>
+  <text x="220" y="397">可用 Usable</text>
+  <rect x="320" y="385" width="14" height="14" fill="#f9d6d0" stroke="#8a2a1d"/>
+  <text x="340" y="397">需大量加工 Heavy preprocessing</text>
+</svg>
+<div class="svg-caption">图 1 · 数据集象限分布。GR00T VLA 训练需要右上角（Q1）；RL motion tracking 用左侧（Q2/Q3）即可。</div>
+</div>
+
+<h2>3. 候选数据集横评</h2>
+
+<table>
+<tr>
+  <th>数据集</th>
+  <th>规模</th>
+  <th>内容</th>
+  <th>文本</th>
+  <th>SMPL</th>
+  <th>G1 retarget</th>
+  <th>License</th>
+</tr>
+<tr>
+  <td><span class="medal">🏆</span><b>LAFAN1 (Unitree)</b></td>
+  <td>~496 段 / 数十小时</td>
+  <td>走/跑/跳/格斗/舞蹈/Aiming</td>
+  <td><span class="tag tag-red">无</span> 片段名</td>
+  <td>n/a (csv)</td>
+  <td><span class="tag tag-green">✅ 已 23-DOF</span></td>
+  <td>Ubisoft non-commercial</td>
+</tr>
+<tr>
+  <td><span class="medal">🥇</span><b>HumanML3D</b></td>
+  <td>14,616 段 + 44,970 caption</td>
+  <td>AMASS 子集 + 自然语言描述</td>
+  <td><span class="tag tag-green">✅ 3 句/段</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>MIT + AMASS</td>
+</tr>
+<tr>
+  <td><span class="medal">🥇</span><b>Motion-X / X++</b></td>
+  <td>81k+ 段 + face/hand</td>
+  <td>含 <b>Kungfu/Dance/Music</b> 子集</td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>各源头独立</td>
+</tr>
+<tr>
+  <td><span class="medal">🥈</span><b>AMASS</b></td>
+  <td>~11k 段 / 40 小时</td>
+  <td>综合 mocap (CMU 武术/舞蹈子集)</td>
+  <td><span class="tag tag-red">无</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>各源头独立</td>
+</tr>
+<tr>
+  <td><span class="medal">🥈</span><b>AIST++</b></td>
+  <td>1408 段 / 5.2h</td>
+  <td><b>纯舞蹈</b> 10 风格 + 音乐</td>
+  <td><span class="tag tag-yellow">风格</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>CC BY 4.0</td>
+</tr>
+<tr>
+  <td><span class="medal">🥉</span><b>100STYLE</b></td>
+  <td>100 风格 × 4 步态</td>
+  <td>走路 100 风格 (老人/僵尸/醉酒...)</td>
+  <td><span class="tag tag-yellow">风格名</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>Academic</td>
+</tr>
+<tr>
+  <td><span class="medal">🥉</span><b>FineDance</b></td>
+  <td>14.6h 舞蹈 / 22 风格</td>
+  <td>音乐+舞蹈成对</td>
+  <td><span class="tag tag-yellow">风格</span></td>
+  <td><span class="tag tag-green">✅</span></td>
+  <td><span class="tag tag-red">❌</span></td>
+  <td>Academic</td>
+</tr>
+</table>
+
+<div class="callout good">
+<b>关键发现：</b>KungfuBot 已经实现了 <code>smpl_retarget/</code>（Mink + PHC 两套），所以<b>任何 SMPL 格式的数据集都能 zero-patch 接入</b>。LAFAN1 更省事——Unitree 直接给了 G1 csv，连 retarget 都跳过。<br>
+<span class="en">KungfuBot already ships SMPL→G1 retarget pipelines. Any SMPL dataset plugs in with zero code changes.</span>
+</div>
+
+<h2>4. 三条复刻路径</h2>
+
+<div class="svg-wrap">
+<svg viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, sans-serif" font-size="13">
+  <!-- Path A: LAFAN1 -->
+  <g>
+    <rect x="20" y="20" width="220" height="340" rx="8" fill="#f3faf5" stroke="#27ae60" stroke-width="2"/>
+    <text x="130" y="44" text-anchor="middle" font-weight="700" font-size="14" fill="#1e7d3a">Path A · LAFAN1 起步</text>
+    <text x="130" y="60" text-anchor="middle" font-size="11" fill="#666">Start fast (1-4 days)</text>
+
+    <rect x="40" y="80" width="180" height="40" rx="4" fill="#fff" stroke="#27ae60"/>
+    <text x="130" y="100" text-anchor="middle">LAFAN1 csv (HF)</text>
+    <text x="130" y="115" text-anchor="middle" font-size="10" fill="#666">unitreerobotics/...</text>
+
+    <line x1="130" y1="125" x2="130" y2="145" stroke="#27ae60" stroke-width="2" marker-end="url(#arrG)"/>
+
+    <rect x="40" y="150" width="180" height="40" rx="4" fill="#fff" stroke="#27ae60"/>
+    <text x="130" y="170" text-anchor="middle">convert_lafan_pkl.py</text>
+    <text x="130" y="185" text-anchor="middle" font-size="10" fill="#666">KungfuBot 原生</text>
+
+    <line x1="130" y1="195" x2="130" y2="215" stroke="#27ae60" stroke-width="2" marker-end="url(#arrG)"/>
+
+    <rect x="40" y="220" width="180" height="40" rx="4" fill="#fff" stroke="#27ae60"/>
+    <text x="130" y="240" text-anchor="middle">PPO (IsaacGym)</text>
+    <text x="130" y="255" text-anchor="middle" font-size="10" fill="#666">humanoidverse/</text>
+
+    <line x1="130" y1="265" x2="130" y2="285" stroke="#27ae60" stroke-width="2" marker-end="url(#arrG)"/>
+
+    <rect x="40" y="290" width="180" height="50" rx="4" fill="#d5f0db" stroke="#1e7d3a"/>
+    <text x="130" y="310" text-anchor="middle" font-weight="600">多 motion / per-PPO</text>
+    <text x="130" y="328" text-anchor="middle" font-size="10" fill="#666">外层 LLM 选 policy</text>
+  </g>
+
+  <!-- Path B: HumanML3D + RL -->
+  <g>
+    <rect x="270" y="20" width="220" height="340" rx="8" fill="#fdf6ed" stroke="#e67e22" stroke-width="2"/>
+    <text x="380" y="44" text-anchor="middle" font-weight="700" font-size="14" fill="#a3590f">Path B · HumanML3D + RL</text>
+    <text x="380" y="60" text-anchor="middle" font-size="11" fill="#666">Text-conditioned (1 week)</text>
+
+    <rect x="290" y="80" width="180" height="40" rx="4" fill="#fff" stroke="#e67e22"/>
+    <text x="380" y="100" text-anchor="middle">HumanML3D</text>
+    <text x="380" y="115" text-anchor="middle" font-size="10" fill="#666">SMPL + 3 caption</text>
+
+    <line x1="380" y1="125" x2="380" y2="145" stroke="#e67e22" stroke-width="2" marker-end="url(#arrO)"/>
+
+    <rect x="290" y="150" width="180" height="40" rx="4" fill="#fff" stroke="#e67e22"/>
+    <text x="380" y="170" text-anchor="middle">smpl_retarget (Mink)</text>
+    <text x="380" y="185" text-anchor="middle" font-size="10" fill="#666">SMPL → G1 23-DOF</text>
+
+    <line x1="380" y1="195" x2="380" y2="215" stroke="#e67e22" stroke-width="2" marker-end="url(#arrO)"/>
+
+    <rect x="290" y="220" width="180" height="40" rx="4" fill="#fff" stroke="#e67e22"/>
+    <text x="380" y="240" text-anchor="middle">PPO + text embed</text>
+    <text x="380" y="255" text-anchor="middle" font-size="10" fill="#666">CLIP / T5 encoder</text>
+
+    <line x1="380" y1="265" x2="380" y2="285" stroke="#e67e22" stroke-width="2" marker-end="url(#arrO)"/>
+
+    <rect x="290" y="290" width="180" height="50" rx="4" fill="#fcecc7" stroke="#8a6100"/>
+    <text x="380" y="310" text-anchor="middle" font-weight="600">"do karate punch"</text>
+    <text x="380" y="328" text-anchor="middle" font-size="10" fill="#666">→ 单 policy 多动作</text>
+  </g>
+
+  <!-- Path C: GR00T VLA -->
+  <g>
+    <rect x="520" y="20" width="220" height="340" rx="8" fill="#f0f5fc" stroke="#2c5aa0" stroke-width="2"/>
+    <text x="630" y="44" text-anchor="middle" font-weight="700" font-size="14" fill="#1d4275">Path C · GR00T VLA</text>
+    <text x="630" y="60" text-anchor="middle" font-size="11" fill="#666">Full VLA (2-3 weeks)</text>
+
+    <rect x="540" y="80" width="180" height="40" rx="4" fill="#fff" stroke="#2c5aa0"/>
+    <text x="630" y="100" text-anchor="middle">HumanML3D / Motion-X</text>
+    <text x="630" y="115" text-anchor="middle" font-size="10" fill="#666">+ Kungfu 子集</text>
+
+    <line x1="630" y1="125" x2="630" y2="145" stroke="#2c5aa0" stroke-width="2" marker-end="url(#arrB)"/>
+
+    <rect x="540" y="150" width="180" height="40" rx="4" fill="#fff" stroke="#2c5aa0"/>
+    <text x="630" y="170" text-anchor="middle">smpl_retarget + 渲染</text>
+    <text x="630" y="185" text-anchor="middle" font-size="10" fill="#666">IsaacSim 多机位</text>
+
+    <line x1="630" y1="195" x2="630" y2="215" stroke="#2c5aa0" stroke-width="2" marker-end="url(#arrB)"/>
+
+    <rect x="540" y="220" width="180" height="40" rx="4" fill="#fff" stroke="#2c5aa0"/>
+    <text x="630" y="240" text-anchor="middle">LeRobot v3.0 打包</text>
+    <text x="630" y="255" text-anchor="middle" font-size="10" fill="#666">video+state+action+task</text>
+
+    <line x1="630" y1="265" x2="630" y2="285" stroke="#2c5aa0" stroke-width="2" marker-end="url(#arrB)"/>
+
+    <rect x="540" y="290" width="180" height="50" rx="4" fill="#d3e3f5" stroke="#1d4275"/>
+    <text x="630" y="310" text-anchor="middle" font-weight="600">GR00T N1.7 finetune</text>
+    <text x="630" y="328" text-anchor="middle" font-size="10" fill="#666">真 VLA 跨 prompt</text>
+  </g>
+
+  <defs>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#27ae60"/>
+    </marker>
+    <marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e67e22"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2c5aa0"/>
+    </marker>
+  </defs>
+</svg>
+<div class="svg-caption">图 2 · 三条复刻路径流程对比。绿色 Path A 最便宜验证；蓝色 Path C 最贴近真 VLA 范式。</div>
+</div>
+
+<div class="path-card recommended">
+<h4><span class="medal">🥇</span>Path A · LAFAN1 + KungfuBot 原生 RL <span class="tag tag-green">最推荐起步</span></h4>
+<p><b>为什么先打这个：</b></p>
+<ul>
+<li><b>零 retarget</b>——Unitree 已经把 LAFAN1 retarget 到 G1 23-DOF，HF 仓 <code>unitreerobotics/LAFAN1_Retargeting_Dataset</code></li>
+<li><b>KungfuBot 原生支持</b>——README 自己点名了，<code>motion_source/convert_lafan_pkl.py</code> 直接吃 csv</li>
+<li><b>数据量提升 70×</b>——496 段 vs 7 段，每段平均长度也更大</li>
+<li>覆盖<b>多 prompt 类别</b>：走/跑/跳/格斗/舞蹈/瞄准/坐 (片段名: <code>dance1_subject1</code>、<code>fight_sword1</code>、<code>aiming1_subject1</code>）</li>
+</ul>
+<p><b>命令片段：</b></p>
+<pre><code># 1. 下载 (LFS)
+huggingface-cli download unitreerobotics/LAFAN1_Retargeting_Dataset \
+  --repo-type dataset --local-dir datasets/lafan1_g1
+
+# 2. csv → pkl
+cd KungfuBot
+python motion_source/convert_lafan_pkl.py \
+  --filepath datasets/lafan1_g1/dance1_subject1 --start 0 --end -1
+
+# 3. 计算 contact mask
+python motion_source/count_pkl_contact_mask.py \
+  robot=unitree_g1_29dof_anneal_23dof \
+  +input_folder=datasets/lafan1_g1/pkl \
+  +target_folder=datasets/lafan1_g1/pkl_with_contact
+
+# 4. 训 PPO (per-motion 或多 motion 共享)
+cd humanoidverse
+python train_agent.py +exp=motion_tracking_g1 \
+  motion_file=path/to/lafan_aggregated.pkl
+</code></pre>
+<p><b>预期产出：</b>3-5 个 PPO ckpt（每个 prompt 类一个），MuJoCo sim2sim 验证能跑通；上层套个简单分类器把自然语言映射到 ckpt id。</p>
+</div>
+
+<div class="path-card medium">
+<h4><span class="medal">🥈</span>Path B · HumanML3D + text-conditioned RL</h4>
+<p><b>为什么打这个：</b>HumanML3D 是<b>目前唯一规模够大 + 带自然语言 caption + SMPL 格式</b>的人体动作数据集（14k motion × 3 caption），caption 就是 <code>"a person performs a karate punch"</code> 这种自然句。</p>
+<p><b>关键工程量：</b></p>
+<ul>
+<li>跑 KungfuBot 的 PHC retarget（SMPL→G1 23-DOF）—— 14k 段 GPU 跑一晚</li>
+<li>需要把 RL policy 改成接 text condition：在 actor 输入加 CLIP/T5 embedding（256 维）</li>
+<li>因为同一动作有多句 caption，可做对比学习增强 prompt 鲁棒</li>
+</ul>
+<p><b>子集策略：</b>不必跑全 14k——先 grep <code>kungfu|karate|dance|punch|kick</code> 关键词筛 ~500 段做 PoC。</p>
+</div>
+
+<div class="path-card hard">
+<h4><span class="medal">🥉</span>Path C · HumanML3D + IsaacSim 渲染 → GR00T N1.7 VLA</h4>
+<p><b>为什么打这个：</b>真要做 VLA（语言+视觉→动作），必须凑齐 <code>(video, state, action, text)</code> 四元组。HumanML3D 给了 (motion, text)，缺 video——只能<b>自渲染</b>。</p>
+<p><b>关键工程量：</b></p>
+<ol>
+<li>retarget SMPL→G1（同 Path B）</li>
+<li>IsaacSim 重放每段 motion，3 个机位渲染：3rd-person side / 3rd-person front / ego head-cam</li>
+<li>打包成 LeRobot v3.0 格式：<code>video.mp4 + state.parquet + action.parquet + meta/tasks.json</code></li>
+<li>GR00T N1.7 finetune（参考 LeIsaac PickOrange 现成 pipeline）</li>
+</ol>
+<p><b>风险：</b></p>
+<ul>
+<li>G1 不在 N1.7 native embodiment registry，要注册新 EmbodimentTag + projector</li>
+<li>渲染 14k 段 × 3 cam × ~10s = 数百 GB</li>
+<li>VLA 训练需要 ≥A100，4090 24GB 只能 LoRA</li>
+</ul>
+<p><b>建议：</b><b>先做 A→B 验证 prompt-conditioned RL 真能 work</b>，再投入 C 的工程量。如果 A/B 都不出效果，C 上去也不会有奇迹。</p>
+</div>
+
+<h2>5. 建议执行顺序</h2>
+
+<table>
+<tr><th>阶段</th><th>数据集</th><th>训练框架</th><th>验证目标</th><th>工作量</th><th>判停条件</th></tr>
+<tr>
+  <td>1️⃣</td>
+  <td>LAFAN1 (G1) 5-10 段</td>
+  <td>KungfuBot PPO per-motion</td>
+  <td>"原生 pipeline 接上更大数据没崩"</td>
+  <td>1 天</td>
+  <td>≥3 段能稳定 tracking 通过</td>
+</tr>
+<tr>
+  <td>2️⃣</td>
+  <td>LAFAN1 (G1) ~30 段</td>
+  <td>PPO + one-hot motion id</td>
+  <td>"一个 policy 能切换多动作"</td>
+  <td>2-3 天</td>
+  <td>切换准确率 ≥80%</td>
+</tr>
+<tr>
+  <td>3️⃣</td>
+  <td>HumanML3D 武术子集 ~500 段</td>
+  <td>retarget + PPO + CLIP embed</td>
+  <td>"自然语言 prompt 选动作"</td>
+  <td>1 周</td>
+  <td>未见过的 prompt 表述能找到正确动作类</td>
+</tr>
+<tr>
+  <td>4️⃣</td>
+  <td>HumanML3D + IsaacSim 渲染</td>
+  <td>GR00T N1.7 finetune</td>
+  <td>"真 VLA 跨 prompt 泛化"</td>
+  <td>2-3 周</td>
+  <td>新 prompt + 视觉扰动仍能完成</td>
+</tr>
+</table>
+
+<div class="callout">
+<b>判停哲学：</b>Linus 第一铁律——别破坏不存在的需求。如果 Stage 1+2 在 G1 上 prompt 切换都不稳，Stage 4 上 VLA 就是给问题加复杂度而不是解决它。每一阶段必须先验通过再投下一阶段。<br>
+<span class="en">Don't add VLA complexity before prompt-conditioned RL works. Validate at every stage.</span>
+</div>
+
+<h2>6. 已知坑 / Known Pitfalls</h2>
+
+<ul>
+<li><b>SMPL 模型文件需要单独申请</b>：HumanML3D / Motion-X / AMASS 都要从 <code>smpl.is.tue.mpg.de</code> 注册下载 <code>SMPL_NEUTRAL.pkl</code>。学术注册即可，但要等几天</li>
+<li><b>LAFAN1 Ubisoft 协议是非商用</b>——实验复刻 OK，商用部署不行</li>
+<li><b>KungfuBot PHC retarget 用 23-DOF 子集</b>：<code>unitree_g1_29dof_anneal_23dof</code>，腰部/手腕被锁定。如果要做手部动作，需切到 29-DOF 配置</li>
+<li><b>IsaacGym → IsaacSim 迁移</b>：KungfuBot RL 在 IsaacGym 训，但 VLA eval 在 IsaacSim。两套 sim 行为有差，建议训完先 sim2sim 验证</li>
+<li><b>GR00T 改 embodiment 不只是改 projector</b>：还要改 normalization stats、state/action dim、language tokenizer 输入格式。N1.7 已经支持的 embodiment 列表见 <code>Isaac-GR00T/gr00t/data/embodiment_tags.py</code></li>
+</ul>
+
+<h2>7. 参考链接</h2>
+
+<table>
+<tr><th>资源</th><th>链接</th></tr>
+<tr><td>LAFAN1 原版</td><td><code>github.com/ubisoft/ubisoft-laforge-animation-dataset</code></td></tr>
+<tr><td>LAFAN1 Unitree retargeted</td><td><code>huggingface.co/datasets/unitreerobotics/LAFAN1_Retargeting_Dataset</code></td></tr>
+<tr><td>HumanML3D</td><td><code>github.com/EricGuo5513/HumanML3D</code></td></tr>
+<tr><td>Motion-X</td><td><code>github.com/IDEA-Research/Motion-X</code></td></tr>
+<tr><td>AMASS</td><td><code>amass.is.tue.mpg.de</code></td></tr>
+<tr><td>AIST++</td><td><code>google.github.io/aichoreographer</code></td></tr>
+<tr><td>100STYLE</td><td><code>ianxmason.github.io/100STYLE</code></td></tr>
+<tr><td>FineDance</td><td><code>github.com/li-ronghui/FineDance</code></td></tr>
+<tr><td>KungfuBot (本地)</td><td><code>~/work/mujoco-experience/KungfuBot</code></td></tr>
+<tr><td>GR00T N1.7</td><td><code>github.com/NVIDIA/Isaac-GR00T</code></td></tr>
+</table>
+
+<div class="foot">
+Generated 2026-05-22 · humanoid-training/docs/humanoid_motion_datasets_survey.html
+</div>
+
+</body>
+</html>
