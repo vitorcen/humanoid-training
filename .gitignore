@@ -124,6 +124,7 @@ Thumbs.db
 wandb/
 runs/
 outputs/
+results/
 checkpoints/
 *.ckpt
 *.pt

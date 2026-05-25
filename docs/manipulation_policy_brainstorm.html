@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HumanoidBench Manipulation 缺口头脑风暴 / Brainstorm</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 980px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #0066cc; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.8em; color: #0066cc; border-left: 4px solid #0066cc; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #f0f4ff; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #0066cc; background: #eef4fc; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .svg-wrap { text-align: center; margin: 1em 0; }
+  ul.tight li { margin-bottom: 0.2em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; margin: 1em 0; }
+  .three-col > div { background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.9em; }
+  .three-col h4 { margin-top: 0; color: #0066cc; }
+</style>
+</head>
+<body>
+
+<h1>HumanoidBench Manipulation 任务策略缺口 — 头脑风暴</h1>
+<em class="en">HumanoidBench manipulation-task policy gap — three-model brainstorm</em>
+
+<div class="callout info">
+<strong>三模型头脑风暴 / Three-model brainstorm</strong>
+<ul class="tight">
+  <li>🅰 <strong>Claude Opus 4.7</strong>（主分析，本机 conda + codebase 上下文）</li>
+  <li>🅱 <strong>Codex (GPT-5.5)</strong> <code>codex exec -m gpt-5.5 -s danger-full-access</code>（带 web search 的外部视角）</li>
+  <li>🅲 <strong>OpenCode (DeepSeek v4-pro)</strong> <code>opencode run -m deepseek/deepseek-v4-pro</code>（独立 web search 视角）</li>
+</ul>
+<p>三方共 <strong>12 条路径</strong>（Opus 4 + Codex 4 + DeepSeek 4），重叠点交叉确认了"无 drop-in ckpt"，差异点互补了 VLA / IK / dataset 三类方案。</p>
+</div>
+
+<h2>0. TL;DR</h2>
+<em class="en">Bottom line first</em>
+
+<ul>
+  <li><strong>问题 / Problem</strong>：HumanoidBench 27 个任务里 <strong>9 个 manipulation 类（cube · kitchen · door · cabinet · basketball · window · spoon · insert<sub>×2</sub> · highbar_hard）没有任何可视化的训练策略可下载</strong>。<em>官方明确不放，DR.Q 社区 ckpt 只覆盖 locomotion，且这些 task 不支持 reach 低层技能 wrapper。</em></li>
+  <li><strong>结论 / Verdict</strong>：<em>三方独立确认无 drop-in ckpt</em>。Opus 4 路径 + Codex 4 路径 + DeepSeek 4 路径 = <strong>12 条互补方案</strong>。按"出图速度 × 真实任务完成度"排序见 §5。</li>
+  <li><strong>推荐优先级 / Recommended priority</strong>：
+    <ol>
+      <li><span class="badge badge-green">0 工时 · 立即</span> 5 个支持 reach 的 manipulation task（package/truck/bookshelf×2/push）— 已可视化</li>
+      <li><span class="badge badge-green">1-3 天 · 立即</span> <strong>脚本 IK 控制器</strong>（DeepSeek 推荐路径 4 ⭐）— 无 ckpt 无 GPU，door/cabinet/window/basketball/cube/spoon 5-6 task 拍照级可视化</li>
+      <li><span class="badge badge-yellow">小时级–1天 · 短期</span> <strong>π0.5 VLA 零样本</strong>（DeepSeek 路径 1 ⭐）— 最快看结果，关键是写 action decoder</li>
+      <li><span class="badge badge-yellow">1-3 小时 · 短期</span> 给 cube/door/cabinet/window/spoon/basketball 补 <code>htarget_low/high</code> + 复用 reach skill（Opus 路径 B）</li>
+      <li><span class="badge badge-yellow">~1 天 · 短期</span> UMI-on-Air ckpt 适配 cabinet（Codex 路径 #1）</li>
+      <li><span class="badge badge-red">数天 · 中期</span> TrajBooster (G1 VLA) / iDP3 / RoboCasa BC，三选一 retarget 实验</li>
+      <li><span class="badge badge-red">数天 · 中期</span> 自训 Dreamer/TDMPC2 medium 从 window/spoon 开始（易任务先）</li>
+      <li><span class="badge badge-gray">长期</span> 训出 SOTA + 回放给社区，填补 carlosferrazza/humanoid-bench issue #22/#66 的需求</li>
+    </ol>
+  </li>
+  <li><strong>三方共识 / Triangulated consensus</strong>：先解 <strong>action-space mismatch (action decoder)</strong>，这是任何外部 ckpt 接入 HB 的头号杀手（DeepSeek 关键洞察 + Codex 4 个候选全部都需要）。</li>
+</ul>
+
+<h2>1. 当前已确认状态 / What's confirmed</h2>
+
+<table>
+<tr><th>项 / Item</th><th>状态 / Status</th><th>证据 / Evidence</th></tr>
+<tr><td>官方 RL ckpt（PPO/SAC/Dreamer/TDMPC2）</td><td>❌ 全部 27 任务都不放</td><td><a href="https://github.com/carlosferrazza/humanoid-bench/issues/22">Issue #22</a>、<a href="https://github.com/carlosferrazza/humanoid-bench/issues/66">Issue #66</a> 作者明确回复</td></tr>
+<tr><td>DR.Q HF ckpt</td><td>✅ Locomotion 28 task × 10 seed；❌ Manipulation 0</td><td><a href="https://huggingface.co/dmux/DR.Q">dmux/DR.Q</a> 文件清单</td></tr>
+<tr><td>官方自带 reach skill</td><td>✅ 16 task（含 push/package/truck/bookshelf）；❌ 9 task</td><td><code>grep htarget_low</code>：cabinet/door/cube/kitchen/basketball/window/spoon/insert/highbar 都没定义</td></tr>
+<tr><td>HumanoidBench task class 的成功信号</td><td>✅ 全部 task 都有 <code>success_bar</code>；cabinet/kitchen 额外 <code>info['success']</code> + <code>info['success_subtasks']</code></td><td>见 §4 表格</td></tr>
+<tr><td>SimbaV2 replay-buffer dataset</td><td>✅ 14 humanoid-bench task / 11.1 GB / 122K episodes</td><td><a href="https://huggingface.co/datasets/joonleesky/simbaV2">joonleesky/simbaV2</a></td></tr>
+</table>
+
+<h2>2. 缺口任务清单 / Gap-task list</h2>
+
+<table>
+<tr><th>Task</th><th>success_bar</th><th>info['success']</th><th>子任务 / Subtasks</th><th>典型难度 / Difficulty</th></tr>
+<tr><td><code>cube</code></td><td>370</td><td>—</td><td>1（魔方姿态）</td><td>🔴 极难 — shadow hand 精密操作</td></tr>
+<tr><td><code>kitchen</code></td><td>4（个 subtask）</td><td>✅</td><td>4（Franka-Kitchen 风格）</td><td>🔴 长 horizon + 多步</td></tr>
+<tr><td><code>door</code></td><td>600</td><td>—</td><td>2（开 + 走过）</td><td>🟡 中等</td></tr>
+<tr><td><code>cabinet</code></td><td>2500</td><td>✅</td><td>5（拉开门/取物/放回/关门）</td><td>🔴 长 horizon</td></tr>
+<tr><td><code>basketball</code></td><td>1200</td><td>—</td><td>2（持球 + 投篮）</td><td>🟡 偏难</td></tr>
+<tr><td><code>window</code></td><td>650</td><td>—</td><td>1（擦拭轨迹）</td><td>🟢 中等偏易</td></tr>
+<tr><td><code>spoon</code></td><td>650</td><td>—</td><td>2（持勺 + 舀）</td><td>🟡 中等</td></tr>
+<tr><td><code>insert_normal</code></td><td>350</td><td>—</td><td>1</td><td>🟡 中等</td></tr>
+<tr><td><code>insert_small</code></td><td>350</td><td>—</td><td>1</td><td>🔴 公差小</td></tr>
+<tr><td><code>highbar_hard</code></td><td>750</td><td>—</td><td>1（h1strong 挂杠）</td><td>🔴 需要强化手</td></tr>
+</table>
+
+<h2>3. 解法 / Proposals</h2>
+<em class="en">Ranked by feasibility × time-cost × visual reward</em>
+
+<h3>🅰 Claude Opus 4.7 视角 — 4 条路径</h3>
+
+<div class="callout ok">
+<strong>路径 A：边缘任务即时可视化 / Edge-task quick wins</strong>（0 工时）
+<p>下列 manipulation task 其实<strong>已支持</strong> reach skill wrapper（已在 §2 之外）：<code>push · package · truck · bookshelf_simple · bookshelf_hard</code>。
+<em>These tasks already declare <code>htarget_low/high</code> and run with the upstream reach skill — visible arm motion right now.</em></p>
+<pre>python scripts/native_viewer.py --env h1hand-package-v0 \
+    --policy_path dependencies/humanoid-bench/data/reach_two_hands/torch_model.pt \
+    --mean_path   dependencies/humanoid-bench/data/reach_two_hands/mean.npy \
+    --var_path    dependencies/humanoid-bench/data/reach_two_hands/var.npy \
+    --policy_type reach_double_relative</pre>
+</div>
+
+<div class="callout warn">
+<strong>路径 B：给缺口 task 补 <code>htarget_low/high</code> 后复用 reach skill</strong>（1-3 小时/task）
+<p>真正的 9 个缺口里，<strong>cube/door/cabinet/window/spoon/basketball</strong> 的"目标位置"在物理上其实清晰可定义（门把手位置、橱柜把手、勺柄、篮筐等）。在 task class 加两行 <code>htarget_low/high = np.array([...])</code> 即可让 reach skill 跑起来。
+<em>For cube/door/cabinet/window/spoon/basketball, the "hand target region" is physically well-defined (door handle, cabinet pull, spoon shaft, basketball, …). A 2-line patch enables the reach skill.</em></p>
+<p><strong>风险 / Risk</strong>：不能完成任务，只能让手臂"伸向目标"——视觉化升级，policy 不会真的开门或扔球。<em>Yields visual richness, not true task completion.</em></p>
+</div>
+
+<div class="callout warn">
+<strong>路径 C：自训 DreamerV3 / TD-MPC2 medium，单任务 0.5–1 天</strong>
+<p>论文里这些 task 训练曲线在 <code>logs/main_results.json</code> 都有；4090 + medium size（~25M params）单任务 4-12 小时能跑到 ~ 50–80% 报告水平。<em>Paper-reported curves exist for all 27 tasks; medium-size Dreamer on a 4090 reaches 50–80% of the published score in 4–12 h per task.</em></p>
+<p><strong>用</strong> <code>humanoid_benchmark</code> preset，不是默认（默认 deter=6144 太大）：</p>
+<pre># 在 dependencies/humanoid-bench/dreamerv3/ 下
+python embodied/agents/dreamerv3/main.py \
+    --configs humanoid_benchmark medium \
+    --task humanoid_h1hand-cube-v0 \
+    --logdir ~/logdir/cube-medium-seed0</pre>
+<p><strong>风险 / Risk</strong>：9 个任务 × 0.5-1 天 = 1-2 周；cube/insert_small 论文都没解，自训也大概率失败。<em>9 tasks × 0.5–1 day = 1–2 weeks; cube and insert_small are unsolved even in the paper.</em></p>
+</div>
+
+<div class="callout danger">
+<strong>路径 D：等社区 / 自训 Simba 大模型</strong>（不可控）
+<p>SimbaV2 (joonleesky/simbaV2) 已经在 HF 放了 14 个 humanoid-bench task 的 <strong>训练 replay buffer</strong>（11.1 GB / 122K ep）—— 这是<strong>离线 RL 训练原料</strong>，不是 policy。用它训 Decision Transformer / CQL / IQL 是可行的 fallback，但跟自训 RL 一样要算力。<em>SimbaV2's dataset is offline RL fuel, not a policy. Training DT/CQL/IQL on it is feasible but not free.</em></p>
+</div>
+
+<h3 id="codex-section">🅱 Codex (GPT-5.x + web search) 视角 — 4 个可迁移资源</h3>
+<em class="en">External perspective with live web research — transferable resources, not drop-in checkpoints</em>
+
+<div class="callout warn">
+<strong>核心论断 / Codex's verdict</strong>：<em>"别幻想有现成的 HumanoidBench 9-task ckpt"</em>。Codex 用 HuggingFace + GitHub 检索后确认：<strong>没有任何公开 drop-in 权重</strong>能直接跑这 9 个 task；但有 4 个 <strong>可迁移资源</strong>，各有 adapter 工作量。
+<em>No public drop-in checkpoints found for the 9 gap tasks. But 4 transferable resources exist, each with adapter work.</em>
+</div>
+
+<table>
+<tr><th>#</th><th>资源 / Resource</th><th>覆盖 / Coverage</th><th>规模 / Size</th><th>接入 / Effort</th><th>风险 / Risk</th></tr>
+<tr>
+  <td>1</td>
+  <td><strong>UMI-on-Air / EADP</strong><br>
+      <a href="https://huggingface.co/LeCAR-Lab/umi-on-air_checkpoints">LeCAR-Lab/umi-on-air_checkpoints</a> (CMU)</td>
+  <td><code>cabinet · peg · pick · valve</code><br>
+      <em>映射到 HB / Maps to HB:</em> <code>cabinet · insert_normal/small · door</code></td>
+  <td><code>checkpoints.tar.gz</code> 3.82 GB<br>含 <code>latest.ckpt · normalizer.pkl · Hydra config</code></td>
+  <td>~1 天 / 1 day<br>写 obs/action adapter</td>
+  <td><span class="badge badge-yellow">中</span> 原方案 UAM / embodiment-aware，非 H1 Shadow Hand，动作空间错→抽风</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><strong>TrajBooster (Unitree G1 VLA)</strong><br>
+      <a href="https://huggingface.co/l2aggle/PPTmodel4UnitreeG1">l2aggle/PPTmodel4UnitreeG1</a> +
+      <a href="https://huggingface.co/datasets/l2aggle/Agibot2UnitreeG1Retarget">Agibot2UnitreeG1Retarget dataset</a><br>
+      <a href="https://jiachengliu3.github.io/TrajBooster/">project page</a></td>
+  <td>Whole-body manipulation；对 <code>kitchen · cabinet · door · basketball · window · spoon</code> 最有价值（移动+双臂）</td>
+  <td>模型 <code>safetensors</code> 7.59 GB<br>retarget dataset 29.3 GB（解压 ~60 GB）</td>
+  <td>~数天 / a few days<br>G1→H1/H1hand retarget + MuJoCo adapter</td>
+  <td><span class="badge badge-red">高</span> VLA 不是 RL policy；evaluate success 必须自己接 HB <code>info</code></td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><strong>iDP3 (Improved 3D Diffusion Policy)</strong><br>
+      <a href="https://github.com/YanjieZe/Improved-3D-Diffusion-Policy">YanjieZe/Improved-3D-Diffusion-Policy</a><br>
+      <a href="https://humanoid-manipulation.github.io/">humanoid-manipulation.github.io</a></td>
+  <td><code>pick/place · pour · wipe</code><br>
+      <em>映射到 HB:</em> <code>window</code>（wipe）· <code>spoon</code>（pour）· 部分 <code>kitchen</code></td>
+  <td>训练数据 + ckpt 在 Google Drive（页面未标总大小）</td>
+  <td>~1 天到数天<br>4090 是作者同款训练机 ✅</td>
+  <td><span class="badge badge-red">高</span> 依赖点云/相机观测；HB 是 state-only，要重做 observation pipeline</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><strong>NVIDIA GR00T-WBC / SONIC</strong><br>
+      <a href="https://github.com/NVlabs/GR00T-WholeBodyControl">NVlabs/GR00T-WholeBodyControl</a></td>
+  <td>Whole-body controller（不是物体策略，但给 <code>highbar_hard</code> + whole-body reach + teleop 数据生成打底）；有 bimanual + object-handoff demo</td>
+  <td><code>last.pt</code> / ONNX / Git-LFS；MotionBricks 额外 ~2.2 GiB</td>
+  <td>~数天</td>
+  <td><span class="badge badge-yellow">中</span> 偏 G1/Isaac WBC，不会自动解 Rubik/kitchen 的 success 条件</td>
+</tr>
+</table>
+
+<div class="callout info">
+<strong>Codex 检索过、确认不存在 / Codex searched, confirmed absent:</strong>
+<ul class="tight">
+  <li>HumanPlus HST policy ckpt for these 9 tasks — 仓库有 ckpt 但任务不匹配</li>
+  <li>SimbaV2 / Simba "1-3 hours HumanoidBench checkpoint" — 只有 dataset (replay buffer)，没 policy weights</li>
+  <li>Nvidia GEAR-SONIC — 与 HB manipulation 任务不对应</li>
+  <li>OmniH2O manipulation ckpt — 该项目主打 teleop, 不放 trained manipulation policy</li>
+</ul>
+</div>
+
+<h3 id="opencode-section">🅲 OpenCode (DeepSeek v4-pro) 视角 — 4 个新方向</h3>
+<em class="en">OpenCode/DeepSeek perspective — adds VLA zero-shot, scripted IK, and RoboCasa BC angles</em>
+
+<div class="callout warn">
+<strong>核心论断 / DeepSeek's verdict</strong>：<em>"无现成 manipulation ckpt。最推荐路径 1（VLA 零样本推理）作为最快看结果的方式，路径 4（IK 控制器）作为保底的可视化手段。"</em>
+<em>No drop-in ckpts. Fastest "see results" route is path 1 (zero-shot VLA); safest visual fallback is path 4 (scripted IK).</em>
+</div>
+
+<table>
+<tr><th>#</th><th>资源 / Resource</th><th>覆盖 / Coverage</th><th>规模 / Size</th><th>接入 / Effort</th><th>风险 / Risk</th></tr>
+<tr>
+  <td>1 ⭐</td>
+  <td><strong>π0.5 VLA (零样本)</strong><br>
+      <a href="https://github.com/Physical-Intelligence/openpi">Physical-Intelligence/openpi</a><br>
+      <a href="https://huggingface.co/hojjunekim/pi05_humanoid_droid">hojjunekim/pi05_humanoid_droid</a> (社区 fine-tune)</td>
+  <td>广义 manipulation（pick/place/door/drawer），可零样本喂图试 HB 9 task</td>
+  <td><code>safetensors</code> 9.67 GB（PyTorch 已支持，2025-09 起）；推理 >8 GB VRAM，LoRA fine-tune ~22.5 GB</td>
+  <td><span class="badge badge-green">小时级–1天</span> 加 RGB 渲染喂 VLA + 写 action decoder</td>
+  <td><span class="badge badge-red">高</span> π0.5 输出笛卡尔 EE pose，HB 用关节空间 → <strong>action decoder 是成败关键</strong>；<code>pi05_humanoid_droid</code> 无 model card</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><strong>DreamerV3 from scratch</strong><br>
+      <a href="https://github.com/danijar/dreamerv3">danijar/dreamerv3</a> (Nature 2025)</td>
+  <td>全部 9 个 manipulation task（逐一训）</td>
+  <td>JAX checkpoint <code>.npz</code>/<code>.pkl</code>；需写 HB → Gym wrapper</td>
+  <td><span class="badge badge-red">2-3 天 wrapper + 2-4 天/task 训练</span></td>
+  <td><span class="badge badge-red">高</span> JAX/PyTorch 桥接；HB paper 报告 Dreamer 在 manipulation 上得分极低或 0</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><strong>RoboCasa365 BC + sim2sim</strong><br>
+      <a href="https://github.com/robocasa/robocasa">robocasa/robocasa</a> (ICLR 2026)</td>
+  <td>door / cabinet / insert / kitchen — 最多 5-6/9 task；2200+ 小时 humanoid demo (hdf5)</td>
+  <td>演示 hdf5 10 GB+；训练后 policy <code>.pt</code> / <code>.ckpt</code></td>
+  <td><span class="badge badge-red">5-7 天</span> 下数据 + 训 Diffusion Policy + adapter</td>
+  <td><span class="badge badge-red">高</span> RoboCasa OSC_POSE IK vs HB joint torque；手形不匹配（H1 vs Shadow Hand）；可能 zero-shot 全失败</td>
+</tr>
+<tr>
+  <td>4 ⭐</td>
+  <td><strong>脚本化 IK 控制器</strong><br>
+      <code>mujoco.mj_inverse</code> + task 自带 site/body 命名</td>
+  <td>door / cabinet / cube / basketball / window / spoon — 5-6/9 task（运动学可达的）<br>
+      kitchen / insert_small 太复杂手写不动</td>
+  <td>纯 Python 脚本，<strong>无 ckpt 无 GPU 训练</strong></td>
+  <td><span class="badge badge-yellow">1-3 天/task</span> 分析 task + 写 reach/grasp/manipulate 序列 + 调 PID</td>
+  <td><span class="badge badge-yellow">中</span> 精度/成功率低，<strong>不是学习策略不能上 benchmark</strong>；但即时可视化填"看到机器人在做事"的缺口</td>
+</tr>
+</table>
+
+<div class="callout ok">
+<strong>DeepSeek 的关键洞察 / DeepSeek's key insight</strong>
+<p><em>"Action space 不匹配是 sim2sim 失败的头号杀手"</em>。RoboCasa/π0.5/UMI-on-Air 都输出 task-space (EE pose / Cartesian)，而 HumanoidBench 是 joint torque/position 控制。任何外部 policy 接入前要先解决这个 <strong>action decoder</strong>。
+<em>"Action-space mismatch is the #1 killer of sim2sim transfer." Every external policy (RoboCasa, π0.5, UMI-on-Air) outputs task-space (EE pose), while HumanoidBench expects joint torque/position. Solve the action decoder first.</em></p>
+</div>
+
+<h2>4. 评测框架 — Success / Subtask / Timeout / Time</h2>
+<em class="en">Eval framework — wire the bench's own signals into the viewer</em>
+
+<p>HumanoidBench 的 task class <strong>已经提供完整的 success / subtask 信号</strong>，不需要外部 ground truth。只要 viewer 在循环里读 <code>info</code> 和累加 reward，就能算出所有指标。
+<em>HumanoidBench tasks already emit per-step success / subtask info — the viewer just needs to read them.</em></p>
+
+<h3>每任务的官方 <code>success_bar</code></h3>
+
+<table>
+<tr><th>类别 / Category</th><th>Task</th><th>success_bar</th><th>含义 / Meaning</th></tr>
+<tr><td rowspan="4">Locomotion</td><td>walk / run / stand</td><td>700-800</td><td>累计 reward 阈值</td></tr>
+<tr><td>balance</td><td>800</td><td>累计 reward</td></tr>
+<tr><td>reach</td><td>12000</td><td>极高门槛（多目标）</td></tr>
+<tr><td>maze</td><td>1200</td><td>累计 reward</td></tr>
+<tr><td rowspan="10">Manipulation</td><td>cube</td><td>370</td><td>累计 reward</td></tr>
+<tr><td>kitchen</td><td>4</td><td><strong>完成的 subtask 数</strong>（不同语义）</td></tr>
+<tr><td>door</td><td>600</td><td>累计 reward</td></tr>
+<tr><td>cabinet</td><td>2500</td><td>+ <code>info['success']</code> 当 5 个 subtask 都完成</td></tr>
+<tr><td>basketball</td><td>1200</td><td>累计 reward</td></tr>
+<tr><td>window</td><td>650</td><td>累计 reward</td></tr>
+<tr><td>spoon</td><td>650</td><td>累计 reward</td></tr>
+<tr><td>insert_normal / small</td><td>350</td><td>累计 reward</td></tr>
+<tr><td>highbar_hard</td><td>750</td><td>累计 reward</td></tr>
+<tr><td>package / truck / bookshelf</td><td>1500 / 3000 / 2000</td><td>累计 reward</td></tr>
+</table>
+
+<h3>建议的 episode 指标 / Recommended episode metrics</h3>
+
+<pre>@dataclass
+class EpisodeStats:
+    task: str
+    seed: int
+    ep_steps: int                  # 步数 / steps used
+    ep_return: float               # 累计 reward / cumulative reward
+    success: bool                  # info['success'] 任意 step True 或 ep_return ≥ success_bar
+    subtasks_max: int              # max(info['success_subtasks']) — kitchen / cabinet 才有
+    time_to_success_s: float | None  # 第一次 success=True 的 wall time
+    timed_out: bool                # truncated == True 且 not success
+    wall_time_s: float             # 完整 episode wall time
+    fps: float                     # ep_steps / wall_time_s</pre>
+
+<h3>"成功 / 失败 / 超时" 三态判定 / Tri-state outcome</h3>
+
+<pre># 关键判定逻辑 / Key logic
+SUCCESS_BAR = base.task.success_bar   # task class 提供
+
+def step():
+    obs, reward, terminated, truncated, info = env.step(action)
+    ep_return += reward
+    # success 优先：env 自己说 True，立即记
+    if info.get('success', False):
+        success = True; time_to_success = wall_now()
+    # cumulative reward 达标也算（locomotion 这类没 info['success']）
+    elif ep_return >= SUCCESS_BAR:
+        success = True; time_to_success = wall_now()
+    # episode 结束时
+    if terminated or truncated:
+        timed_out = truncated and not success
+        # 落账 EpisodeStats，重置</pre>
+
+<div class="callout info">
+<strong>实现 TODO / Implementation TODO</strong>
+<p>在 <code>scripts/native_viewer.py</code> 和 <code>scripts/drq_viewer.py</code> 加 <code>--eval N</code> flag：跑 N 个 episode，落 JSONL 到 <code>results/&lt;task&gt;_&lt;seed&gt;.jsonl</code>，最后打印聚合（success_rate / mean_return / mean_steps / mean_time_to_success / timeout_rate）。已有 <code>drq_viewer.py</code> ep 返回机制是雏形，需要扩展到统计 + 文件输出。</p>
+<p><em>Add <code>--eval N</code> to viewers: run N episodes, dump JSONL, print aggregates.</em></p>
+</div>
+
+<h2>5. 综合行动计划 / Synthesized action plan</h2>
+<em class="en">12 paths merged across Opus + Codex + DeepSeek, ranked by ROI</em>
+
+<table>
+<tr><th>#</th><th>路径 / Path</th><th>来源 / Source</th><th>预估 / ETA</th><th>视觉收益 / Visual win</th><th>真任务完成 / Real success</th></tr>
+<tr style="background:#eaf7ed;"><td>1</td><td>5 个支持 reach 的 manipulation task 跑现有 reach skill</td><td>🅰 Opus A</td><td>0</td><td>✅ 高</td><td>❌ 否</td></tr>
+<tr style="background:#eaf7ed;"><td>2 ⭐</td><td><strong>脚本 IK 控制器</strong>（door/cabinet/cube/basketball/window/spoon）</td><td>🅲 DeepSeek #4</td><td>1-3 天/task</td><td>✅ 高</td><td>⚠️ 部分（运动学层面）</td></tr>
+<tr style="background:#fff7e6;"><td>3 ⭐</td><td><strong>π0.5 VLA 零样本</strong>（openpi + pi05_humanoid_droid）</td><td>🅲 DeepSeek #1</td><td>小时级-1 天</td><td>✅ 高</td><td>⚠️ 看 action decoder</td></tr>
+<tr style="background:#fff7e6;"><td>4</td><td>给缺口 task 加 <code>htarget_low/high</code> + 复用 reach skill</td><td>🅰 Opus B</td><td>1-3 h/task</td><td>✅ 中</td><td>❌ 否</td></tr>
+<tr style="background:#fff7e6;"><td>5</td><td>UMI-on-Air ckpt 适配（cabinet/peg/pick/valve → HB cabinet/insert/door）</td><td>🅱 Codex #1</td><td>~1 天</td><td>✅ 高</td><td>⚠️ 部分</td></tr>
+<tr style="background:#fdecea;"><td>6</td><td>iDP3 diffusion policy 适配（wipe→window，pour→spoon）</td><td>🅱 Codex #3</td><td>数天</td><td>✅ 高</td><td>⚠️ 部分</td></tr>
+<tr style="background:#fdecea;"><td>7</td><td>TrajBooster (G1 VLA) retarget 到 H1，覆盖 kitchen/cabinet/door</td><td>🅱 Codex #2</td><td>数天</td><td>✅ 高</td><td>⚠️ 部分</td></tr>
+<tr style="background:#fdecea;"><td>8</td><td>RoboCasa365 BC + sim2sim（door/cabinet/insert/kitchen）</td><td>🅲 DeepSeek #3</td><td>5-7 天</td><td>✅ 高</td><td>⚠️ 部分</td></tr>
+<tr style="background:#fdecea;"><td>9</td><td>自训 Dreamer / TDMPC2 medium，从 window/spoon 开始</td><td>🅰 Opus C / 🅲 DeepSeek #2</td><td>0.5-1 天/task</td><td>✅ 高</td><td>✅ 是</td></tr>
+<tr style="background:#fdecea;"><td>10</td><td>GR00T-WBC 作为 whole-body baseline + task head</td><td>🅱 Codex #4</td><td>数天</td><td>✅ 中</td><td>⚠️ 部分</td></tr>
+<tr style="background:#e8e8ec;"><td>11</td><td>DreamerV3 covering all 9 tasks（HB paper 报告基本 0 分）</td><td>🅲 DeepSeek #2</td><td>2-3 天/task × 9</td><td>✅ 高</td><td>❌ 论文已证基本不收敛</td></tr>
+<tr style="background:#e8e8ec;"><td>12</td><td>SimbaV2 dataset 离线 RL (DT/CQL/IQL)</td><td>🅰 Opus D</td><td>数周</td><td>✅ 高</td><td>⚠️ 不确定</td></tr>
+</table>
+
+<div class="callout info">
+<strong>★ 标记 = 强推荐 / Highest ROI</strong>：路径 2（脚本 IK）和路径 3（π0.5 VLA）。这两条<strong>本周内可见结果</strong>，前者无 ML 风险，后者覆盖最广。
+</div>
+
+<div class="three-col">
+  <div>
+    <h4>本周 / This week（落地）</h4>
+    <ul class="tight">
+      <li>给 viewer 加 <code>--eval N</code> + JSONL 输出（§4）</li>
+      <li>跑路径 1 + 2 的 baseline（success_rate / ep_steps / time_to_success）</li>
+      <li>把本 HTML 链接到 <code>HumanoidBench.ipynb</code> §10 之后</li>
+    </ul>
+  </div>
+  <div>
+    <h4>本月 / This month（试一条迁移）</h4>
+    <ul class="tight">
+      <li>挑 <strong>路径 3 (UMI-on-Air)</strong> 试 cabinet 适配 — Codex 推荐为单天工作量、风险中等</li>
+      <li>同步跑路径 6 的 window Dreamer training，建立内训 pipeline</li>
+    </ul>
+  </div>
+  <div>
+    <h4>季度 / This quarter（贡献社区）</h4>
+    <ul class="tight">
+      <li>把 2-3 个能跑通的 task ckpt 发回 HF (<code>dmux/DR.Q</code> + 自训 manipulation 补充)</li>
+      <li>路径 5/8 选其一深入，看是否能拿到 SOTA</li>
+    </ul>
+  </div>
+</div>
+
+<h2>6. 待补录 / Pending</h2>
+<ul>
+  <li>✅ 🅱 Codex 视角已合并（4 条外部可迁移资源 — §3 + §5）</li>
+  <li>✅ 🅲 OpenCode/DeepSeek 视角已合并（π0.5 VLA · DreamerV3 · RoboCasa BC · 脚本 IK）</li>
+  <li><code>scripts/eval.py</code> 实现 + 跑出 first baseline 表（路径 1 + 2 的 success_rate）</li>
+  <li>📌 <strong>建议下一步</strong>：先实现路径 2（脚本 IK）—— 1-3 天能让 cube/door/cabinet/window/basketball/spoon 都看到机器人在做事</li>
+  <li>📌 同时下 <code>hojjunekim/pi05_humanoid_droid</code>（9.67 GB）试路径 3 零样本，看 π0.5 在 HB 渲染下能否产生有意义动作</li>
+</ul>
+
+<hr>
+
+<p style="text-align: center; color: #888;">
+本项目其它人形 RL 演示 / Related humanoid demos:
+<code>../mujoco-experience/KungfuBot.ipynb</code> ·
+<code>../isaaclab-experience/LeIsaac.ipynb</code> ·
+<code>HumanoidBench.ipynb</code>
+</p>
+
+</body>
+</html>
