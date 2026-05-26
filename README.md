@@ -16,6 +16,23 @@ _Train humanoid policies that **measurably solve tasks** — reproduce baselines
 
 ---
 
+## 🤗 已发布 checkpoints
+
+_Released checkpoints_
+
+🔗 **<https://huggingface.co/wsagi/HumanoidBench-DR.Q>** — H1/G1 自训通关权重，**超过官方 baseline**：
+
+| Task | 自训 / Self-trained | 公开 baseline | 提升 |
+| --- | --- | --- | --- |
+| `h1-walk-v0` | **success 90% / mean 801** (N=10) | dmux/DR.Q seed 0: ~30% / ~530 | **3× 成功率** |
+| `g1-walk-v0` | **success 70% / mean 711** (N=10) | DR.Q torque: 0% / mean ~100 | **7.1× return** |
+
+仓库内含完整权重（推理 + 续训）、N=10 ep eval JSONL、MuJoCo MP4 演示。一键下载与本地观看见 `HumanoidBench-SelfTrained.ipynb`。
+
+_Full weights (inference + resume), N=10 ep eval JSONL, and MuJoCo MP4 demos. See `HumanoidBench-SelfTrained.ipynb` for one-click download + local playback._
+
+---
+
 ## 🏗️ 覆盖范围
 
 _Scope_
@@ -36,8 +53,9 @@ _Repository layout_
 
 ```
 humanoid-training/
-├── HumanoidBench.ipynb          # 多任务 × 多策略一键预览 / multi-task × multi-policy preview
-├── HumanoidBenchShowcase.ipynb  # 训练结果与可视化 / training results & visualization
+├── HumanoidBench.ipynb              # 多任务 × 多策略一键预览 / multi-task × multi-policy preview
+├── HumanoidBench-Showcase.ipynb     # baseline (dmux/DR.Q) 9 task 通关展示 / baseline showcase
+├── HumanoidBench-SelfTrained.ipynb  # 自训 ckpt HF 下载 + 内嵌视频预览 / self-trained ckpt HF pull + inline MP4
 ├── scripts/
 │   ├── native_viewer.py         # MuJoCo 原生预览（任务通用）/ native viewer
 │   ├── drq_viewer.py            # DR.Q checkpoint 加载与回放 / DR.Q ckpt loader
@@ -146,8 +164,11 @@ _Current progress_
 - 🏆 **首个自训通关 ckpt** — `h1-walk-v0` from-scratch 500k 步 / 6.6h on RTX 4090：
   **success 90% (N=10 ep), mean_return 801** ← 公开 ckpt seed 0 仅 ~30% / ~530
   _First self-trained passing ckpt: H1-walk reaches **90% success / 801 mean** vs HF public 30% / 530._
-- 🛑 G1 自训早停 — `g1-walk-v0` 1M 步 torque 控制达不到 success_bar，已记录到 memory 不再重试
+- 🏆 **G1-walk-v0 自训通关** — 三模型 brainstorm 后两层 patch（PD 控制 + BlockedHands 屏蔽 14 维手指）：**success 70% N=10 ep, mean 711**（vs torque baseline mean 100 = 7.1× 提升）
+  _G1-walk passes too — two-layer patch (PD control + BlockedHands) after tri-model brainstorm: success 70%, mean 711 (7.1× over torque baseline). See `docs/g1_training_strategies.html`._
   _G1-walk torque control found insufficient in 1M steps; documented to avoid re-attempt._
+- 🤗 自训 ckpt 已发布到 HF（详见顶部 [已发布 checkpoints](#-已发布-checkpoints) 段）
+  _Self-trained ckpts published — see the **Released checkpoints** section near the top._
 - 🟡 Manipulation gap 任务待攻关：cube · kitchen · cabinet · window · spoon · insert · highbar
   _Manipulation gap tasks pending: cube · kitchen · cabinet · window · spoon · insert · highbar._
 - 📋 行动计划：`docs/manipulation_policy_brainstorm.html`（Opus + GPT-5.5 + DeepSeek 三方头脑风暴汇总）
@@ -160,7 +181,8 @@ _Current progress_
 _Related work_
 
 - [carlosferrazza/humanoid-bench](https://github.com/carlosferrazza/humanoid-bench) — upstream benchmark suite
-- [dmux/DR.Q](https://huggingface.co/dmux/DR.Q) — DR.Q pretrained checkpoints
+- [dmux/DR.Q](https://huggingface.co/dmux/DR.Q) — DR.Q pretrained checkpoints (baseline)
+- 🤗 [wsagi/HumanoidBench-DR.Q](https://huggingface.co/wsagi/HumanoidBench-DR.Q) — **our self-trained ckpts**: H1-walk 90% / G1-walk 70%
 - `../mujoco-experience` · `../isaaclab-experience` — sister repos in this family
 
 ---

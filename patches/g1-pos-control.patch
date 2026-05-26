@@ -1,0 +1,104 @@
+diff --git a/humanoid_bench/assets/robots/g1_torque.xml b/humanoid_bench/assets/robots/g1_torque.xml
+index e4a6188..132935d 100644
+--- a/humanoid_bench/assets/robots/g1_torque.xml
++++ b/humanoid_bench/assets/robots/g1_torque.xml
+@@ -10,10 +10,10 @@
+       <site rgba="1 0 0 1" size="0.01" group="5"/>
+       <joint damping="0.5" armature="0.01" frictionloss="0.1"/>
+       <default class="arm_joint">
+-        <motor ctrlrange="-20 20"/>
++        <position kp="100" kv="2" forcerange="-40 40"/>
+       </default>
+       <default class="hand_joint">
+-        <motor ctrlrange="-0.7 0.7"/>
++        <position kp="10" kv="0.5" forcerange="-2 2"/>
+       </default>
+       <default class="visual">
+         <geom group="2" type="mesh" contype="0" conaffinity="0" density="0.001" material="metallic"/>
+@@ -366,49 +366,49 @@
+   </worldbody>
+ 
+   <actuator>
+-    <motor class="g1" name="left_hip_pitch_joint" joint="left_hip_pitch_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="left_hip_roll_joint" joint="left_hip_roll_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="left_hip_yaw_joint" joint="left_hip_yaw_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="left_knee_joint" joint="left_knee_joint" ctrlrange="-139 139"/>
+-    <motor class="g1" name="left_ankle_pitch_joint" joint="left_ankle_pitch_joint" ctrlrange="-40 40"/>
+-    <motor class="g1" name="left_ankle_roll_joint" joint="left_ankle_roll_joint" ctrlrange="-40 40"/>
++    <position class="g1" name="left_hip_pitch_joint" joint="left_hip_pitch_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-2.35 3.05"/>
++    <position class="g1" name="left_hip_roll_joint" joint="left_hip_roll_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-0.26 2.53"/>
++    <position class="g1" name="left_hip_yaw_joint" joint="left_hip_yaw_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-2.75 2.75"/>
++    <position class="g1" name="left_knee_joint" joint="left_knee_joint" kp="300" kv="6" forcerange="-139 139" ctrlrange="-0.33489 2.5449"/>
++    <position class="g1" name="left_ankle_pitch_joint" joint="left_ankle_pitch_joint" kp="40" kv="2" forcerange="-40 40" ctrlrange="-0.68 0.73"/>
++    <position class="g1" name="left_ankle_roll_joint" joint="left_ankle_roll_joint" kp="40" kv="2" forcerange="-40 40" ctrlrange="-0.2618 0.2618"/>
+ 
+-    <motor class="g1" name="right_hip_pitch_joint" joint="right_hip_pitch_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="right_hip_roll_joint" joint="right_hip_roll_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="right_hip_yaw_joint" joint="right_hip_yaw_joint" ctrlrange="-88 88"/>
+-    <motor class="g1" name="right_knee_joint" joint="right_knee_joint" ctrlrange="-139 139"/>
+-    <motor class="g1" name="right_ankle_pitch_joint" joint="right_ankle_pitch_joint" ctrlrange="-40 40"/>
+-    <motor class="g1" name="right_ankle_roll_joint" joint="right_ankle_roll_joint" ctrlrange="-40 40"/>
++    <position class="g1" name="right_hip_pitch_joint" joint="right_hip_pitch_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-2.35 3.05"/>
++    <position class="g1" name="right_hip_roll_joint" joint="right_hip_roll_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-2.53 0.26"/>
++    <position class="g1" name="right_hip_yaw_joint" joint="right_hip_yaw_joint" kp="200" kv="5" forcerange="-88 88" ctrlrange="-2.75 2.75"/>
++    <position class="g1" name="right_knee_joint" joint="right_knee_joint" kp="300" kv="6" forcerange="-139 139" ctrlrange="-0.33489 2.5449"/>
++    <position class="g1" name="right_ankle_pitch_joint" joint="right_ankle_pitch_joint" kp="40" kv="2" forcerange="-40 40" ctrlrange="-0.68 0.73"/>
++    <position class="g1" name="right_ankle_roll_joint" joint="right_ankle_roll_joint" kp="40" kv="2" forcerange="-40 40" ctrlrange="-0.2618 0.2618"/>
+ 
+-    <motor class="g1" name="torso_joint" joint="torso_joint" ctrlrange="-88 88"/>
++    <position class="g1" name="torso_joint" joint="torso_joint" kp="300" kv="6" forcerange="-88 88" ctrlrange="-2.618 2.618"/>
+ 
+-    <motor class="arm_joint" name="left_shoulder_pitch_joint" joint="left_shoulder_pitch_joint"/>
+-    <motor class="arm_joint" name="left_shoulder_roll_joint" joint="left_shoulder_roll_joint"/>
+-    <motor class="arm_joint" name="left_shoulder_yaw_joint" joint="left_shoulder_yaw_joint"/>
+-    <motor class="arm_joint" name="left_elbow_pitch_joint" joint="left_elbow_pitch_joint"/>
+-    <motor class="arm_joint" name="left_elbow_roll_joint" joint="left_elbow_roll_joint"/>
++    <position class="arm_joint" name="left_shoulder_pitch_joint" joint="left_shoulder_pitch_joint" ctrlrange="-2.9671 2.7925"/>
++    <position class="arm_joint" name="left_shoulder_roll_joint" joint="left_shoulder_roll_joint" ctrlrange="-1.5882 2.2515"/>
++    <position class="arm_joint" name="left_shoulder_yaw_joint" joint="left_shoulder_yaw_joint" ctrlrange="-2.618 2.618"/>
++    <position class="arm_joint" name="left_elbow_pitch_joint" joint="left_elbow_pitch_joint" ctrlrange="-0.2268 3.4208"/>
++    <position class="arm_joint" name="left_elbow_roll_joint" joint="left_elbow_roll_joint" ctrlrange="-2.0943 2.0943"/>
+ 
+-    <motor class="arm_joint" name="right_shoulder_pitch_joint" joint="right_shoulder_pitch_joint"/>
+-    <motor class="arm_joint" name="right_shoulder_roll_joint" joint="right_shoulder_roll_joint"/>
+-    <motor class="arm_joint" name="right_shoulder_yaw_joint" joint="right_shoulder_yaw_joint"/>
+-    <motor class="arm_joint" name="right_elbow_pitch_joint" joint="right_elbow_pitch_joint"/>
+-    <motor class="arm_joint" name="right_elbow_roll_joint" joint="right_elbow_roll_joint"/>
++    <position class="arm_joint" name="right_shoulder_pitch_joint" joint="right_shoulder_pitch_joint" ctrlrange="-2.9671 2.7925"/>
++    <position class="arm_joint" name="right_shoulder_roll_joint" joint="right_shoulder_roll_joint" ctrlrange="-2.2515 1.5882"/>
++    <position class="arm_joint" name="right_shoulder_yaw_joint" joint="right_shoulder_yaw_joint" ctrlrange="-2.618 2.618"/>
++    <position class="arm_joint" name="right_elbow_pitch_joint" joint="right_elbow_pitch_joint" ctrlrange="-0.2268 3.4208"/>
++    <position class="arm_joint" name="right_elbow_roll_joint" joint="right_elbow_roll_joint" ctrlrange="-2.0943 2.0943"/>
+ 
+-    <motor class="hand_joint" name="left_zero_joint" joint="left_zero_joint"/>
+-    <motor class="hand_joint" name="left_one_joint" joint="left_one_joint"/>
+-    <motor class="hand_joint" name="left_two_joint" joint="left_two_joint"/>
+-    <motor class="hand_joint" name="left_three_joint" joint="left_three_joint"/>
+-    <motor class="hand_joint" name="left_four_joint" joint="left_four_joint"/>
+-    <motor class="hand_joint" name="left_five_joint" joint="left_five_joint"/>
+-    <motor class="hand_joint" name="left_six_joint" joint="left_six_joint"/>
++    <position class="hand_joint" name="left_zero_joint" joint="left_zero_joint" ctrlrange="-0.523598 0.523598"/>
++    <position class="hand_joint" name="left_one_joint" joint="left_one_joint" ctrlrange="-1 1.2"/>
++    <position class="hand_joint" name="left_two_joint" joint="left_two_joint" ctrlrange="0 1.84"/>
++    <position class="hand_joint" name="left_three_joint" joint="left_three_joint" ctrlrange="-1.84 0.3"/>
++    <position class="hand_joint" name="left_four_joint" joint="left_four_joint" ctrlrange="-1.84 0"/>
++    <position class="hand_joint" name="left_five_joint" joint="left_five_joint" ctrlrange="-1.84 0.3"/>
++    <position class="hand_joint" name="left_six_joint" joint="left_six_joint" ctrlrange="-1.84 0"/>
+ 
+-    <motor class="hand_joint" name="right_zero_joint" joint="right_zero_joint"/>
+-    <motor class="hand_joint" name="right_one_joint" joint="right_one_joint"/>
+-    <motor class="hand_joint" name="right_two_joint" joint="right_two_joint"/>
+-    <motor class="hand_joint" name="right_three_joint" joint="right_three_joint"/>
+-    <motor class="hand_joint" name="right_four_joint" joint="right_four_joint"/>
+-    <motor class="hand_joint" name="right_five_joint" joint="right_five_joint"/>
+-    <motor class="hand_joint" name="right_six_joint" joint="right_six_joint"/>
++    <position class="hand_joint" name="right_zero_joint" joint="right_zero_joint" ctrlrange="-0.523598 0.523598"/>
++    <position class="hand_joint" name="right_one_joint" joint="right_one_joint" ctrlrange="-1.2 1"/>
++    <position class="hand_joint" name="right_two_joint" joint="right_two_joint" ctrlrange="-1.84 0"/>
++    <position class="hand_joint" name="right_three_joint" joint="right_three_joint" ctrlrange="-0.3 1.84"/>
++    <position class="hand_joint" name="right_four_joint" joint="right_four_joint" ctrlrange="0 1.84"/>
++    <position class="hand_joint" name="right_five_joint" joint="right_five_joint" ctrlrange="-0.3 1.84"/>
++    <position class="hand_joint" name="right_six_joint" joint="right_six_joint" ctrlrange="0 1.84"/>
+   </actuator>
+ 
+   <sensor>

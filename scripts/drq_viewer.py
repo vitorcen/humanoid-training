@@ -122,9 +122,18 @@ def main():
                    help="HBenchPreprocessing default = 2; keep aligned with training")
     p.add_argument("--no_download", action="store_true",
                    help="fail if ckpt missing instead of auto-fetching from HF Hub")
+    p.add_argument("--ckpt_dir", default=None,
+                   help="explicit path to DRQ+HBench-<task>+<seed>/ — bypass cache lookup. "
+                        "Use this to load ckpts from non-dmux repos (e.g. wsagi/HumanoidBench-DR.Q).")
     args = p.parse_args()
 
-    ckpt_dir = resolve_ckpt(args.task, args.seed, auto_download=not args.no_download)
+    if args.ckpt_dir:
+        ckpt_dir = Path(args.ckpt_dir)
+        missing = [f for f in CRITICAL_FILES if not (ckpt_dir / f).is_file()]
+        if missing:
+            sys.exit(f"❌ --ckpt_dir {ckpt_dir} missing required files: {missing}")
+    else:
+        ckpt_dir = resolve_ckpt(args.task, args.seed, auto_download=not args.no_download)
     print(f"📂 ckpt = {ckpt_dir}")
 
     env = gym.make(args.task)

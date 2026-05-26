@@ -119,6 +119,7 @@ cython_debug/
 # OS
 .DS_Store
 Thumbs.db
+.lock
 
 # Project-specific
 wandb/
@@ -126,7 +127,9 @@ runs/
 outputs/
 results/
 checkpoints/
+hf_release/
 *.ckpt
 *.pt
 *.pth
 *.safetensors
+.viewer_logs/

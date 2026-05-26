@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>G1 训练失败根因 + 改进方案 · G1 Training Failure Root Cause & Strategies</title>
+<style>
+body { font-family: -apple-system, "Segoe UI", "Noto Sans CJK SC", sans-serif; max-width: 980px; margin: 32px auto; padding: 0 24px; line-height: 1.6; color: #222; }
+h1 { border-bottom: 2px solid #444; padding-bottom: 8px; }
+h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 40px; }
+h3 { color: #333; margin-top: 28px; }
+em { color: #666; font-size: 0.95em; }
+table { border-collapse: collapse; margin: 16px 0; width: 100%; }
+th, td { border: 1px solid #bbb; padding: 8px 12px; text-align: left; vertical-align: top; }
+th { background: #f4f4f4; }
+code, pre { font-family: "JetBrains Mono", Menlo, monospace; }
+pre { background: #1e1e1e; color: #eee; padding: 14px; border-radius: 6px; overflow-x: auto; font-size: 0.85em; }
+code:not(pre code) { background: #efefef; padding: 2px 6px; border-radius: 3px; }
+.tier-s { background: #c8f7c5; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+.tier-a { background: #fff3cd; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+.tier-b { background: #d1ecf1; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+.tier-c { background: #f8d7da; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
+.callout { background: #fff8c8; border-left: 4px solid #ffb000; padding: 12px 18px; margin: 16px 0; border-radius: 4px; }
+.callout-bad { background: #fee; border-left: 4px solid #d9534f; padding: 12px 18px; margin: 16px 0; border-radius: 4px; }
+.callout-good { background: #efe; border-left: 4px solid #5cb85c; padding: 12px 18px; margin: 16px 0; border-radius: 4px; }
+svg { background: #fafafa; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h1>G1 训练失败根因 + 改进方案</h1>
+<p><em>G1 self-training root cause & remediation roadmap — written 2026-05-26 after H1-walk 90% success but G1-walk &amp; G1-crawl failed.</em></p>
+
+<h2>§1 实测事实库 · Empirical facts</h2>
+
+<table>
+<tr><th>实验 / Experiment</th><th>obs / act</th><th>control</th><th>步数 / Steps</th><th>结果 / Outcome</th></tr>
+<tr><td>H1-walk-v0 自训</td><td>51 / 19</td><td><code>pos</code></td><td>500k</td><td class="tier-s">✅ success 90%, mean 801, 6.6h on RTX 4090</td></tr>
+<tr><td>G1-walk-v0 自训</td><td>87 / 37</td><td><code>torque</code></td><td>1M</td><td class="tier-c">❌ peak 150, mean 100, success 0%, watcher DEAD</td></tr>
+<tr><td>G1-crawl-v0 自训</td><td>87 / 37</td><td><code>torque</code></td><td>135k</td><td class="tier-c">❌ ckpt mean 350 &lt; <strong>random baseline 378</strong></td></tr>
+<tr><td>G1-crawl-v0 random</td><td>87 / 37</td><td><code>torque</code></td><td>—</td><td>mean 378, ep 1000（不摔）</td></tr>
+</table>
+
+<p><em>3 个 G1 实验全部失败，最严重的是 G1-crawl 训练 135k 步后 ckpt eval 还低于 random — 不是慢，是<strong>反向学习</strong>。</em></p>
+
+<h2>§2 根因 · Root cause</h2>
+
+<div class="callout">
+<strong>HumanoidBench 把 H1 和 G1 放到了两个完全不同的控制问题上。</strong> 不是网络宽度、不是 obs 维度、不是 act 维度——而是 actuator 类型本身。<br>
+<em>HumanoidBench puts H1 and G1 into two fundamentally different control problems — not net width, obs dim, or act dim, but the actuator type itself.</em>
+</div>
+
+<table>
+<tr><th></th><th>H1（成功）</th><th>G1（失败）</th></tr>
+<tr><td><strong>Actuator XML</strong></td><td><code>&lt;position kp="200" kv="5"/&gt;</code></td><td><code>&lt;motor ctrlrange="-88 88"/&gt;</code></td></tr>
+<tr><td><strong>控制语义</strong></td><td>Policy 输出<strong>目标关节角度</strong>，PD 控制器自动 servo</td><td>Policy 输出<strong>裸扭矩</strong>，无任何 inner loop 帮助</td></tr>
+<tr><td><strong>Action 物理范围</strong></td><td>例如 hip ∈ [-0.43, 0.43] rad</td><td>hip ∈ [-88, 88] N·m</td></tr>
+<tr><td><strong>每步动作连续性</strong></td><td>关节角速度受 PD 限制，自然平滑</td><td>无内置平滑，policy 自己学</td></tr>
+<tr><td><strong>稳定性</strong></td><td>PD 提供自动减速 + 抗扰</td><td>完全依赖 policy 学到的"会站着"</td></tr>
+<tr><td><strong>exploration_noise=0.2 的语义</strong></td><td>每步 ±0.086 rad 微扰</td><td>每步 ±17.6 N·m 巨扰，机器人会被推飞</td></tr>
+<tr><td><strong>HumanoidBench __init__.py:6</strong></td><td colspan="2"><code>if robot == "g1" or robot == "digit": control = "torque"</code> — 硬编码强制 G1 用 torque</td></tr>
+</table>
+
+<div class="callout-bad">
+<strong>关键数学事实：</strong>DR.Q 在归一化 [-1, 1] action 空间施加 N(0, 0.2) 高斯噪声。在 H1 pos 上这是 4% 关节范围，policy 收敛过程中扰动可忽略；在 G1 torque 上这是 ±17.6 N·m 即 ±20% 满力矩，<strong>策略每一步都被持续推动，根本无法稳定</strong>。这就是为什么 G1-crawl ckpt mean 比 random 还低 — 训练时加噪声让 policy 偏向"狂躁"策略。
+</div>
+
+<h2>§3 候选方案评级 · Candidate ranking</h2>
+
+<table>
+<tr><th>方案</th><th>评级</th><th>预估增益</th><th>实现成本</th><th>风险</th></tr>
+<tr>
+  <td><strong>B</strong> · G1 改 pos 控制（patch g1.xml + __init__.py）</td>
+  <td class="tier-s">S</td>
+  <td>5-10× sample efficiency, 从 0% → 估 60%+ success</td>
+  <td>低（写一个 patch 文件，~30 行 XML 改动）</td>
+  <td>需要标定 kp/kv，初始可参考 H1 同关节</td>
+</tr>
+<tr>
+  <td><strong>D-i</strong> · 换 PPO + on-policy 训练</td>
+  <td class="tier-a">A</td>
+  <td>2-3× 稳定性提升（PPO 对 torque 更稳）</td>
+  <td>中（重写 launcher，集成 stable-baselines3 或 cleanrl）</td>
+  <td>PPO 在 humanoid 上 sample efficiency 远低于 DR.Q，需要 5-10M 步</td>
+</tr>
+<tr>
+  <td><strong>A'</strong> · 降低 torque 空间 exploration_noise 到 0.05</td>
+  <td class="tier-a">A</td>
+  <td>1.5-2×（缓解扰动但根本问题没解决）</td>
+  <td>极低（改 1 行 Hyperparameters）</td>
+  <td>仍需 1M+ 步，不一定能跨 success_bar</td>
+</tr>
+<tr>
+  <td><strong>D-ii</strong> · 换 DreamerV3 medium 25M params</td>
+  <td class="tier-b">B</td>
+  <td>3-5×（world model 容忍 torque 噪声）</td>
+  <td>高（重新搭训练管线 ~1 天）</td>
+  <td>训练 ~12h/task，比 DR.Q 慢 5-10×</td>
+</tr>
+<tr>
+  <td><strong>F</strong> · DR.Q 默认超参 train 3-5M 步</td>
+  <td class="tier-b">B</td>
+  <td>未知（可能仍 catastrophic forgetting）</td>
+  <td>中（30+ GPU 小时/task）</td>
+  <td>G1-walk 实测 catastrophic forgetting at 250k；可能更长也不行</td>
+</tr>
+<tr>
+  <td><strong>G</strong> · Action smoothness 正则 + reward shaping</td>
+  <td class="tier-b">B</td>
+  <td>2× 收敛速度</td>
+  <td>中（改 DRQ.py policy loss 加 L2 项）</td>
+  <td>需要调权重，无现成参考</td>
+</tr>
+<tr>
+  <td><strong>C</strong> · 加宽 encoder (enc_hdim 750→1024)</td>
+  <td class="tier-c">C</td>
+  <td>~1.1×（小）</td>
+  <td>中</td>
+  <td>不解决根因；H1Hand obs 151 也用同样宽度跑通</td>
+</tr>
+<tr>
+  <td><strong>E</strong> · H1 ckpt warm-start + action adapter</td>
+  <td class="tier-c">C</td>
+  <td>未知（obs 维度都不一样）</td>
+  <td>高</td>
+  <td>obs 51→87 不兼容，需要 padding，论文级别 hack</td>
+</tr>
+<tr>
+  <td><strong>G-i</strong> · Domain randomization</td>
+  <td class="tier-c">C</td>
+  <td>对 sim-to-real 有用，对训练收敛无用</td>
+  <td>中</td>
+  <td>偏离当前目标</td>
+</tr>
+</table>
+
+<h2>§4 Tier S 实施方案 · S-tier action plan</h2>
+
+<h3>4.1 改造 G1 actuators 为 PD position 控制</h3>
+
+<p><em>Convert G1 motor actuators to PD position actuators, mirroring H1's setup.</em></p>
+
+<p>参考 H1 的 PD 设置 <code>dependencies/humanoid-bench/humanoid_bench/assets/mjx/h1_mjx_feet_collisions_pos.xml</code>：</p>
+
+<pre><code>&lt;default class="hip"&gt;&lt;position forcerange="-200 200" kp="200" kv="5"/&gt;&lt;/default&gt;
+&lt;default class="knee"&gt;&lt;position forcerange="-300 300" kp="300" kv="6"/&gt;&lt;/default&gt;
+&lt;default class="ankle"&gt;&lt;position forcerange="-40 40" kp="40" kv="2"/&gt;&lt;/default&gt;
+&lt;default class="torso"&gt;&lt;position forcerange="-200 200" kp="300" kv="6"/&gt;&lt;/default&gt;
+&lt;default class="shoulder"&gt;&lt;position forcerange="-40 40" kp="100" kv="2"/&gt;&lt;/default&gt;
+&lt;default class="elbow"&gt;&lt;position forcerange="-18 18" kp="100" kv="2"/&gt;&lt;/default&gt;</code></pre>
+
+<p>G1 关节范围从 g1.xml joint 定义提取（弧度）：</p>
+
+<table>
+<tr><th>关节 / Joint</th><th>当前 motor ctrlrange (N·m)</th><th>关节 range (rad)</th><th>改 position 后 ctrlrange (rad)</th><th>class / kp / kv</th></tr>
+<tr><td>hip_pitch</td><td>-88 88</td><td>-2.35 3.05</td><td>-2.35 3.05</td><td>hip / 200 / 5</td></tr>
+<tr><td>hip_roll</td><td>-88 88</td><td>-0.26 2.53</td><td>-0.26 2.53</td><td>hip / 200 / 5</td></tr>
+<tr><td>hip_yaw</td><td>-88 88</td><td>-2.75 2.75</td><td>-2.75 2.75</td><td>hip / 200 / 5</td></tr>
+<tr><td>knee</td><td>-139 139</td><td>-0.33 2.54</td><td>-0.33 2.54</td><td>knee / 300 / 6</td></tr>
+<tr><td>ankle_pitch / roll</td><td>-40 40</td><td>-0.68 0.73 / -0.26 0.26</td><td>(同 range)</td><td>ankle / 40 / 2</td></tr>
+<tr><td>torso</td><td>-88 88</td><td>-2.62 2.62</td><td>-2.62 2.62</td><td>torso / 300 / 6</td></tr>
+<tr><td>shoulder_*</td><td>-25 25 (估)</td><td>各异</td><td>(同 range)</td><td>shoulder / 100 / 2</td></tr>
+<tr><td>elbow_*</td><td>-25 25 (估)</td><td>各异</td><td>(同 range)</td><td>elbow / 100 / 2</td></tr>
+</table>
+
+<h3>4.2 Patch 制品 · Patch artifacts</h3>
+
+<ul>
+  <li><code>patches/g1-pos-control.patch</code> — 改 g1.xml 把 motor actuators 全替换为 position actuators</li>
+  <li><code>patches/humanoid-bench-g1-pos-init.patch</code> — 改 humanoid_bench/__init__.py:6 把 G1 control 从 torque 改 pos（或加 g1_pos 别名）</li>
+  <li><code>patches/apply.sh</code> 自动应用</li>
+</ul>
+
+<h3>4.3 验证序列 · Validation sequence</h3>
+
+<ol>
+  <li><strong>Step 1</strong> — 单跑 g1-walk-v0 random baseline，确认 pos 控制下 ep_length 和 reward 都正常（如果 PD 太硬关节 lock-up 会暴露）</li>
+  <li><strong>Step 2</strong> — DR.Q 训 g1-walk-v0 500k 步 + 全 watcher/daemon 链路，期望复现 H1-walk 量级（success 70%+）</li>
+  <li><strong>Step 3</strong> — 训 g1-crawl-v0、g1-stand-v0、g1-sit_simple-v0 各 500k 步，看 G1 pos 是否能像 H1 一样多 task 通关</li>
+  <li><strong>Step 4</strong> — HF release G1 ckpts 填补 dmux/DR.Q 空白</li>
+</ol>
+
+<h2>§5 时间预算 · Time budget</h2>
+
+<table>
+<tr><th>步骤</th><th>耗时</th></tr>
+<tr><td>写 G1 PD patch + apply</td><td>~30 min</td></tr>
+<tr><td>random baseline 验证 G1 pos 物理稳定</td><td>~5 min</td></tr>
+<tr><td>G1-walk-v0 500k 步训练（参考 H1 经验）</td><td>~6-7h</td></tr>
+<tr><td>G1-crawl-v0 / stand / sit_simple 各 500k 步</td><td>~20h（可并行）</td></tr>
+<tr><td>HF release 4 个 G1 task ckpt</td><td>~30 min</td></tr>
+<tr><td><strong>总计</strong></td><td><strong>~30 GPU-hour ≈ 1.5 天</strong></td></tr>
+</table>
+
+<h2>§6 失败回退路径 · Fallback if PD doesn't work</h2>
+
+<p>如果 §4 跑出来 G1 pos 仍达不到 H1 量级（success &lt; 50%），按此顺序回退：</p>
+
+<ol>
+  <li>降 exploration_noise 0.2 → 0.1 → 0.05（Tier A 方案 A'）</li>
+  <li>加 action smoothness L2 penalty（Tier B 方案 G）</li>
+  <li>切 PPO 训练（Tier A 方案 D-i）</li>
+  <li>训 1M 步而非 500k（Tier B 方案 F）</li>
+</ol>
+
+<p><em>不做：加宽网络 / H1 warm-start / DR / curriculum — 这些都不解决根因。</em></p>
+
+<h2>§7 外部 insights · External cross-validation</h2>
+
+<p><em>第二轮通过 tmux 真 TTY 启动 codex gpt-5.5 --search 成功产出。结论与 Opus 独立分析高度一致 + 补充关键证据。</em></p>
+
+<h3>7.1 Codex gpt-5.5 核心论点</h3>
+
+<table>
+<tr><th>论点 / Claim</th><th>支撑证据 / Evidence</th></tr>
+<tr>
+  <td><strong>H1 成功不是 DR.Q 魔法，是 position action 把低层稳定性藏进 PD</strong></td>
+  <td>Codex 独立得出与本文 §2 相同结论</td>
+</tr>
+<tr>
+  <td><strong>第三方公开 G1 PPO ckpt 用 normalized joint position targets</strong>（业界标准）</td>
+  <td><a href="https://huggingface.co/hardware-pathon-ai/unitree-g1-phase1-locomotion">HF hardware-pathon-ai/unitree-g1-phase1-locomotion</a> + <a href="https://deepwiki.com/google-deepmind/mujoco_menagerie/2.2-unitree-g1">MuJoCo Menagerie G1</a> 都有 position actuators 版本</td>
+</tr>
+<tr>
+  <td><strong>HumanoidBench 论文自己承认 flat RL 挣扎</strong>，hierarchical 才是 SOTA</td>
+  <td><a href="https://arxiv.org/abs/2403.10506">arxiv 2403.10506</a></td>
+</tr>
+<tr>
+  <td><strong>sparse reward + torque exploration 会破坏天然稳定姿态</strong>（解释 G1-crawl < random 现象）</td>
+  <td>reward 主要奖励"别死"，DR.Q 探索 torque 后机器人乱晃反而减分；<a href="https://arxiv.org/abs/2408.00342">MuJoCo MPC on HumanoidBench arxiv 2408.00342</a> 也证实需要 reward 正则</td>
+</tr>
+<tr>
+  <td><strong>TD3-family deterministic actor 在 G1 torque 上放大 DDPG 的过估计问题</strong></td>
+  <td><a href="https://arxiv.org/abs/1802.09477">TD3 原论文 1802.09477</a> — clipped double Q + delayed update + target smoothing 都是补丁</td>
+</tr>
+<tr>
+  <td><strong>HumanoidBench repo 自带 TD-MPC2 / DreamerV3 / PPO / JaxRL 入口</strong></td>
+  <td>本仓库实测：<code>dependencies/humanoid-bench/{tdmpc2,dreamerv3,ppo,jaxrl_m}/</code> 全部存在</td>
+</tr>
+</table>
+
+<h3>7.2 Codex 推荐的 ROI 优先级（与本文 §3 对比）</h3>
+
+<table>
+<tr><th>排名</th><th>Codex 推荐</th><th>本文对应 Tier</th><th>差异</th></tr>
+<tr><td>1</td><td>B+H · G1 action → PD position / residual PD</td><td>Tier S</td><td>✅ 完全一致</td></tr>
+<tr><td>2</td><td>G · Curriculum (stand→walk) + reward/action 正则 + freeze arms</td><td>未列</td><td>⚠️ <strong>本文遗漏，应补充</strong></td></tr>
+<tr><td>3</td><td>D · TD-MPC2 优先 &gt; SAC/DSAC &gt; PPO（PPO 需要 IsaacGym 大并行）</td><td>Tier A</td><td>Codex 更细化：明确 TD-MPC2 first</td></tr>
+<tr><td>4</td><td>A · noise 0.2→0.4 低 ROI（更可能"更会摔"）</td><td>Tier A</td><td>Codex 更悲观</td></tr>
+<tr><td>5</td><td>F · 训更久低 ROI（catastrophic forgetting 是优化目标错，不是样本不够）</td><td>Tier B</td><td>✅ 一致</td></tr>
+<tr><td>6</td><td>E · H1 warm-start 中低 ROI（H1-pos vs G1-torque 语义不同，adapter 易脏）</td><td>Tier C</td><td>✅ 一致</td></tr>
+<tr><td>7</td><td>C · 加宽 encoder 最低 ROI</td><td>Tier C</td><td>✅ 一致</td></tr>
+</table>
+
+<h3>7.3 本文应补充的方案（Codex 新增）</h3>
+
+<div class="callout">
+<strong>新 Tier A 候选：Curriculum + Reward Regularization</strong><br>
+即使 PD patch 让 G1-walk 能学，仍可能在难任务（manipulation）上崩。Codex 建议加 alive bonus / posture penalty / action-rate L2 / joint velocity penalty / contact penalty。这些都是 humanoid RL 标准做法。<br>
+<em>Implementation: 改 humanoid_bench/tasks.py 在 reward 里加正则项；或 wrap env 加 post-reward 修饰。</em>
+</div>
+
+<h3>7.4 brainstorm log</h3>
+
+<ul>
+  <li><strong>Opus（本机分析）</strong> — 通过直接读 g1.xml + h1_mjx_*_pos.xml 实证根因（PD vs torque），完整 patch 方案 + 9 方案评级</li>
+  <li><strong>codex gpt-5.5 --search</strong>（第二轮 tmux）— ✅ 168 行专业回答，9 篇文献引用，ROI 排名与本文一致 + 补充 curriculum 路线 + 第三方 G1 PD ckpt 证据</li>
+  <li><strong>opencode deepseek-v4-pro</strong>（第二轮 tmux）— ✅ 244 行回答 + 颠覆性诊断（见 §8）</li>
+</ul>
+
+<h2>§8 OpenCode 的颠覆性诊断 · OpenCode's reframing</h2>
+
+<div class="callout-bad">
+<strong>OpenCode 指出 Opus + Codex 都错了真正根因。</strong><br>
+G1 现在跑的 g1_torque.xml 已经被 patch 成 PD position 控制（见 §4.2），但训练仍慢得多。<strong>问题不在 PD vs torque</strong>，而在 <strong>G1 action 空间维度组成</strong>。
+</div>
+
+<h3>8.1 真正根因（更精准）</h3>
+
+<table>
+<tr><th>分组</th><th>DoF 数</th><th>与行走关系</th></tr>
+<tr><td>腿 + 躯干</td><td>13</td><td><strong>必需</strong></td></tr>
+<tr><td>手臂</td><td>10</td><td>有用（平衡/摆臂）</td></tr>
+<tr><td><strong>手指</strong></td><td><strong>14</strong></td><td><strong>完全无关</strong></td></tr>
+<tr><td>合计</td><td>37</td><td></td></tr>
+</table>
+
+<p>DR.Q (<code>DRQ.py:133</code>) 对所有 37 维施加同方差噪声 σ=0.2：</p>
+
+<pre><code>action += torch.randn_like(action) * 0.2  # 37-dim isotropic Gaussian</code></pre>
+
+<div class="callout-bad">
+<strong>致命数学</strong>：所有 37 维噪声落在 [-σ, σ] 内的联合概率 = 0.68³⁷ ≈ <strong>10⁻⁷</strong>。<br>
+意思是：<strong>每一条 transition 都至少有一个关节被大幅扰动</strong>。其中 14 维是与行走无关的手指。<br><br>
+H1 (19D, 全部 walk-relevant): 0.68¹⁹ ≈ 7×10⁻⁴ — 还可以容忍<br>
+G1 (37D, 14D 是手指): <strong>每个 transition 都被手指噪声污染</strong>
+</div>
+
+<h3>8.2 污染链 / Contamination chain</h3>
+
+<ol>
+  <li>每个 transition 混入手指随机痉挛 → encoder 的 dynamics loss (<code>dyn_weight=1.0</code>) 被迫学习"无关手指动力学"</li>
+  <li>InfoNCE 对比学习被混淆：两条 transition 行走相同但手指动作不同 → encoder 学不到行走相关的不变表征</li>
+  <li>LAP 优先重放的 priority 被 finger-heavy 的 dynamics error 劫持</li>
+  <li><strong>250k 步灾难性遗忘</strong>：encoder 从"行走动力学"漂移到"手指动力学" → Value 函数崩塌 → 策略崩塌</li>
+</ol>
+
+<p><strong>"G1-crawl random 378 vs 训练后 350" 完美证实</strong>：random policy 关节不动 = 稳定爬；训练后 policy 输出 + 噪声搅动手指 = 比 random 更差。</p>
+
+<h3>8.3 OpenCode 推荐 ROI（与本文 §3 对比）</h3>
+
+<table>
+<tr><th>排名</th><th>OpenCode 推荐</th><th>本文 / Codex 对应</th><th>状态</th></tr>
+<tr>
+  <td>1</td>
+  <td><strong>屏蔽手指 DoF — 37→23 维</strong>（用 wrappers.py:382 的 BlockedHandsLocoWrapper 扩展支持 G1）</td>
+  <td>未列</td>
+  <td class="tier-s">⚠️ <strong>新 Tier S — 比 PD 更根本</strong></td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>各向异性噪声 [0.25]*13 + [0.15]*10 + [0.05]*14</td>
+  <td>未列</td>
+  <td>Tier A — 保留 manipulation 余地的折中方案</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>降 dyn_weight 1.0→0.1（治标）</td>
+  <td>未列</td>
+  <td>Tier B</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>TD-MPC2（隐式动力学自动压缩无关维度）</td>
+  <td>Codex 同推荐</td>
+  <td>Tier A</td>
+</tr>
+<tr>
+  <td>反对</td>
+  <td>提 noise 0.2→0.4 反而更糟（同质性噪声在高维下已让每个 transition 被污染）</td>
+  <td>本文 Tier A · Codex Tier 4</td>
+  <td>三方一致 ❌</td>
+</tr>
+<tr>
+  <td>反对</td>
+  <td>加宽 encoder（瓶颈在 14D 无关维度污染 latent，不在容量）</td>
+  <td>本文 Tier C · Codex Tier 7</td>
+  <td>三方一致 ❌</td>
+</tr>
+</table>
+
+<h3>8.4 G1 actuator 顺序确认（本地验证 OpenCode）</h3>
+
+<p>本仓库 <code>dependencies/humanoid-bench/humanoid_bench/assets/robots/g1_torque.xml:368-410</code> actuator 排列：</p>
+
+<table>
+<tr><th>索引</th><th>关节</th><th>分组</th></tr>
+<tr><td>0-5</td><td>left hip×3 + knee + ankle×2</td><td>腿</td></tr>
+<tr><td>6-11</td><td>right hip×3 + knee + ankle×2</td><td>腿</td></tr>
+<tr><td>12</td><td>torso</td><td>躯干</td></tr>
+<tr><td>13-17</td><td>left shoulder×3 + elbow×2</td><td>手臂</td></tr>
+<tr><td>18-22</td><td>right shoulder×3 + elbow×2</td><td>手臂</td></tr>
+<tr><td>23-29</td><td>left finger×7</td><td><strong>屏蔽</strong></td></tr>
+<tr><td>30-36</td><td>right finger×7</td><td><strong>屏蔽</strong></td></tr>
+</table>
+
+<p><strong><code>list(range(23))</code> 正是腿+躯干+手臂全部，OpenCode 推荐确认可行</strong>。</p>
+
+<h2>§9 最终决策路径 · Final decision tree</h2>
+
+<pre>
+当前 G1-walk PD 500k 训练中（PID 971221, 21% peak 25, vs H1 同期 peak 58 慢 2-3×）
+                        │
+                ┌───────┴────────┐
+                ▼                ▼
+       PD 训完 success≥50%?    达不到（OpenCode 预测）
+                │                │
+                ▼                ▼
+     ✅ PD 方案足够          ⚡ Tier S' = BlockedHands G1
+     提交 ckpt + 训其他         patch wrappers.py:382 支持 G1
+     G1 task                   list(range(23)) 屏蔽手指
+                              重启 g1-walk-v0 + blocked_hands=True
+                                    │
+                                    ▼
+                         500k 步重试，如再不行换 TD-MPC2
+</pre>
+
+<div class="callout-good">
+<strong>本轮三模型 brainstorm 真正的价值：OpenCode 把根因从"接口（PD vs torque）"修正到"action space dim 组成（37 维含 14 维无关手指）"。两层都是真根因，但 OpenCode 的层级更深一层。Tier S（PD）可能必要但不充分；Tier S' （BlockedHands）可能才是关键。</strong>
+</div>
+
+<h2>§10 最终验证结果 · Final empirical validation</h2>
+
+<div class="callout-good">
+<strong>2026-05-26 凌晨完成三轮 G1-walk-v0 实验，最终成功通关：</strong>
+</div>
+
+<table>
+<tr><th>实验</th><th>配置</th><th>act_dim</th><th>500k mean</th><th>success</th><th>耗时</th></tr>
+<tr><td>Round 1 Baseline</td><td>torque (upstream default)</td><td>37</td><td>~100</td><td>0%</td><td>1M 步，DEAD</td></tr>
+<tr><td>Round 2 Tier S</td><td>PD only (g1-pos-control.patch)</td><td>37</td><td><strong>435</strong></td><td>0%</td><td>500k 步, 4.3× 改善</td></tr>
+<tr><td><strong>Round 3 Tier S+S'</strong></td><td><strong>PD + BlockedHands</strong></td><td><strong>23</strong></td><td><strong>711</strong></td><td><strong>70%</strong> ✅</td><td>500k 步, 通关</td></tr>
+</table>
+
+<h3>10.1 Round 3 完整 N=10 ep eval</h3>
+
+<pre>=== G1-walk-v0 PD+BH FINAL — N=10 ep, success_bar=700 ===
+mean_return:     710.52
+success_rate:    7/10 = 70%
+
+  ✅ ep00  return= 750.77  steps=1000
+  ✅ ep01  return= 733.39  steps=1000
+  ·  ep02  return= 521.20  steps=1000
+  ✅ ep03  return= 706.11  steps=1000
+  ·  ep04  return= 657.51  steps=1000
+  ·  ep05  return= 651.37  steps=1000
+  ✅ ep06  return= 769.29  steps=1000
+  ✅ ep07  return= 814.20  steps=1000
+  ✅ ep08  return= 735.23  steps=1000
+  ✅ ep09  return= 766.11  steps=1000
+</pre>
+
+<h3>10.2 关键发现总结</h3>
+
+<ol>
+  <li><strong>OpenCode 诊断完全正确</strong>：14 维手指 noise 污染 encoder 是真根因之一。BH 在 50k-100k 早期已 1.5× 快于 PD-only，最终 500k 步爆发到 700+</li>
+  <li><strong>"中后期 BH 比 PD-only 慢"是误判</strong>：第二次接力 290k 数据看起来 BH 落后，但 BH 末段急速上升（440k mean 354 → 470k peak 476 → 500k mean 711）。教训：不要在 60% 进度时根据 deterministic 3-ep eval 下结论</li>
+  <li><strong>PD（Opus/Codex）+ BlockedHands（OpenCode）是组合最优</strong>：单独 PD 把 mean 从 100→435（4.3×）；BlockedHands 在 PD 基础上从 435→711（再 1.6×）；总增益 7.1×</li>
+  <li><strong>eval.py 修了 BlockedHandsLocoWrapper 导致 success_bar 检测失败的 bug</strong>：原 <code>env.task.success_bar</code> 因 wrapper cycle 不可达；fallback 按 env_id 字符串匹配的 task name 查表</li>
+</ol>
+
+<div class="callout-good">
+<strong>所有三模型贡献都得到验证：</strong><br>
+Opus 找到 PD vs torque 接口差异 → 解决 80%<br>
+Codex 引用业界证据（HF G1 PPO ckpt 都用 PD targets）→ 强化 PD 方向<br>
+OpenCode 挖出 14 维手指 noise 污染 → 解决剩余 20%
+</div>
+
+</body>
+</html>

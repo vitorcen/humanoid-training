@@ -68,7 +68,13 @@ metadata:
 
 - [x] **Step 1 — eval.py ✅** `scripts/eval.py` 完成，drivers: random/zero/reach/drq；输出 JSONL + 聚合统计。验证：walk-v0 + DR.Q seed 0 ar=2 ep 10 跑出 success=3/10 mean_return≈530（论文 [371,652] 内）
 - [x] **Step 2 — DR.Q baseline ✅ 超额完成** `scripts/sweep_drq.sh` 扫 28 task seed 0 N=5; `scripts/sweep_drq_multiseed.sh` 对候选扩 N=10×3seeds。**9/9 task ≥50%（5 个 100%）**：h1-crawl/pole/sit_simple/stand 100%, h1hand-sit_simple 100%, h1-run/sit_hard 97%, h1hand-sit_hard 77%, h1-walk 73%。**用户 ≥3 task 目标超 3 倍完成**。结果在 `results/drq_multiseed/*.jsonl`
-- [x] **Step 4(替代) — 自训 H1-walk-v0 流水线验证 ✅** patch DR.Q (main.py:222 + DRQ.py:278) + `scripts/train_watcher.py` + `scripts/ckpt_eval_loop.py` 全链路。**500k 步 / 6.6h wall on RTX 4090**。最终 ckpt: **success_rate 90% N=10 ep, mean_return 801**（公开 seed 0 仅 ~530 / ~30%）。**首个自训通关 ckpt**。Ckpt 备份在 `runs/h1_walk_pilot/DRQ/checkpoint/DRQ+HBench-h1-walk-v0+0/`。G1-walk 早停因 torque 控制 1M 步达不到 success_bar（备份在 `runs/g1_pilot_v1_dead_at_330k/`）。
+- [x] **Step 4(替代) — 自训 H1-walk-v0 流水线验证 ✅** patch DR.Q (main.py:222 + DRQ.py:278) + `scripts/train_watcher.py` + `scripts/ckpt_eval_loop.py` 全链路。**500k 步 / 6.6h wall on RTX 4090**。最终 ckpt: **success_rate 90% N=10 ep, mean_return 801**（公开 seed 0 仅 ~530 / ~30%）。**首个自训通关 ckpt**。Ckpt 备份在 `runs/h1_walk_pilot/DRQ/checkpoint/DRQ+HBench-h1-walk-v0+0/`。
+- [x] **Step 4b — G1-walk-v0 自训通关 ✅** 三轮实验最终成功。耗费 RTX 4090 ~3h（含 brainstorm 调研）。**关键发现**：
+  - Round 1 (G1 torque baseline)：1M 步 mean 100 success 0%，DEAD
+  - Round 2 (PD-only Tier S，patches/g1-pos-control.patch)：500k 步 mean 435 success 0%（4.3× 改善但未通关）
+  - **Round 3 (PD+BlockedHands Tier S'，patches/humanoid-bench-g1-blocked-hands.patch)：500k 步 success 70% mean 711 ✅** Ckpt 备份在 `runs/g1_walk_pdbh_pilot/`
+  - **真正根因**（OpenCode deepseek-v4-pro 诊断）：G1 37D act 含 14 维手指与行走完全无关，DR.Q 同方差 σ=0.2 noise 在 37D 几乎每 transition 都有手指扰动 → encoder dynamics loss 被迫学手指 → 250k catastrophic forgetting。屏蔽手指（act 23D）+ PD 控制双管齐下才通关
+  - **Why:** 解决方案是 PD（接口稳定性）+ BlockedHands（去除无关 noise）的**组合**。单独 PD 解决 80%，单独 BlockedHands 也不够。三方 brainstorm 见 `docs/g1_training_strategies.html`
 - [ ] Step 3 — reach skill manipulation baseline（低优先级）
 - [ ] Step 5 — UMI-on-Air cabinet adapter
 - [ ] **Step 6 — HF release** 候选: `wsagi/humanoidbench-h1-walk-v0-drq-selftrained` 含 policy.pt + encoder.pt + agent_var.npy（9 个 .pt，~80MB），mean 801 success 90% N=10 — **比公开 ckpt 强**，值得发回 carlosferrazza/humanoid-bench Issue #66

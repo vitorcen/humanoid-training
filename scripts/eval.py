@@ -80,13 +80,39 @@ def make_env(task: str, driver: str, args):
 
 
 def get_success_bar(env: gym.Env) -> float | None:
-    """Read task.success_bar if exposed."""
+    """Read task.success_bar — walks through BlockedHandsLocoWrapper if present.
+
+    HumanoidEnv.task can be a wrapper (e.g., BlockedHandsLocoWrapper) which proxies
+    the real task as ._env's task attr — but `HumanoidEnv.task` is replaced by the
+    wrapper, creating a cycle. So we have to look for the actual class with
+    success_bar attribute via __class__.__mro__ inspection or wrapper chain.
+    """
     base = env.unwrapped
     task = getattr(base, "task", None)
     if task is None:
         return None
+    # direct hit
     bar = getattr(task, "success_bar", None)
-    return float(bar) if bar is not None else None
+    if bar is not None:
+        return float(bar)
+    # BlockedHandsLocoWrapper case: it sets ._env to the gym env (which itself owns .task = the wrapper)
+    # so we need to check the wrapper's wrapped raw task class — look at task.__class__.__mro__[1]
+    # for the underlying task class
+    for parent in type(task).__mro__:
+        bar = getattr(parent, "success_bar", None)
+        if bar is not None:
+            return float(bar)
+    # fallback: task name → known bar table (HumanoidBench)
+    task_name = getattr(env.spec, "id", "") if env.spec else ""
+    known = {
+        "walk": 700, "run": 700, "stand": 800, "sit_simple": 750, "sit_hard": 750,
+        "crawl": 700, "pole": 700, "stair": 700, "slide": 700, "hurdle": 700,
+        "balance_simple": 800, "balance_hard": 800, "maze": 1200, "reach": 12000,
+    }
+    for k, v in known.items():
+        if f"-{k}-" in task_name:
+            return float(v)
+    return None
 
 
 def build_policy(driver: str, task: str, seed: int, env: gym.Env, args) -> Callable[[np.ndarray], np.ndarray]:

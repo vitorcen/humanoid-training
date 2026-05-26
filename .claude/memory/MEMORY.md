@@ -2,3 +2,4 @@
 - [Bilingual docs](feedback_bilingual_docs.md) — docs/notebooks pair Chinese with italic English captions; canonical reference is `isaaclab-experience/README.md`
 - [Benchmark validation plan](project_benchmark_validation.md) — 6-step roadmap to drive ≥50% multi-run success rate on HumanoidBench tasks; resume point after compact
 - [Train with watcher](feedback_train_with_watcher.md) — long training must run alongside a slice-based auto-eval watcher with early-stop; learned from LeIsaac
+- [No secrets in memory](feedback_no_secrets_in_memory.md) — memory files are committed with the repo; never write API keys, passwords, tokens, or other secrets
