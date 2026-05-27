@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GR00T-N1.7 Zero-Shot 计划三模型评审 / Tri-Model Review</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1020px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #76b900; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.9em; color: #76b900; border-left: 4px solid #76b900; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.94em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #eef7e0; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #76b900; background: #f3fae5; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-nvidia { background: #76b900; color: #fff; }
+  .svg-wrap { text-align: center; margin: 1em 0; background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.8em; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; margin: 1em 0; }
+  .three-col > div { background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.9em; }
+  .three-col h4 { margin-top: 0; }
+  .reviewer-A { border-top: 3px solid #cc6600; }
+  .reviewer-B { border-top: 3px solid #0066cc; }
+  .reviewer-C { border-top: 3px solid #aa00aa; }
+  .quote-A { border-left: 3px solid #cc6600; padding: 0.3em 0.8em; background: #fff8f0; margin: 0.5em 0; font-style: italic; }
+  .quote-B { border-left: 3px solid #0066cc; padding: 0.3em 0.8em; background: #f0f6ff; margin: 0.5em 0; font-style: italic; }
+  .quote-C { border-left: 3px solid #aa00aa; padding: 0.3em 0.8em; background: #faf0fa; margin: 0.5em 0; font-style: italic; }
+  .verdict { font-weight: 700; color: #99332f; }
+</style>
+</head>
+<body>
+
+<h1>GR00T-N1.7 Zero-Shot 计划 — 三模型犀利评审</h1>
+<em class="en">Tri-model critical review of the GR00T-N1.7 zero-shot plan on HumanoidBench</em>
+
+<div class="callout info">
+<strong>三模型评审 / Three-model review</strong>
+<ul class="tight">
+  <li>🅰 <strong>Claude Opus 4.7</strong>（本机 ground truth：直接读 HF cache 的 <code>processor_config.json</code> / <code>experiment_cfg/config.yaml</code> / <code>final_model_config.json</code>）</li>
+  <li>🅱 <strong>Codex (GPT-5.5)</strong> <code>codex exec -m gpt-5.5</code>（web search 读 NVIDIA Isaac-GR00T 源码 + Policy Guide + DROID example）</li>
+  <li>🅲 <strong>OpenCode (DeepSeek-V4-Pro)</strong> <code>opencode run -m deepseek/deepseek-v4-pro</code>（web search 验证 N1.7 model card + 白皮书）</li>
+</ul>
+<p>三方独立审查后<strong>结论高度一致</strong>：原计划存在 <span class="verdict">致命架构误判</span>（"GR00T 输出 7D arm"），需推翻重做。</p>
+</div>
+
+<h2>0. TL;DR — 一句话</h2>
+<em class="en">Bottom line</em>
+
+<div class="callout danger">
+<strong>❌ 原计划不值得按现状执行。</strong><br>
+最大错误：把 GR00T 当 "吐 7D arm action 的黑盒"。N1.7 实际是 <strong>~38–40D 多模态 chunked action</strong>（双臂 EEF + 双手 + 双臂 joint + waist + base/navigate），由 <code>embodiment_tag</code> 绑定，<strong>没有 H1Hand 对应 tag</strong>。
+</div>
+
+<ul>
+  <li><span class="badge badge-red">🅰🅱🅲 三方一致</span> <strong>"54D reach skill 兜底"方案不成立</strong> — 没有 GR00T 与 reach skill 协调的接口；G1→H1 EEF 因臂长不同（60cm vs 90cm）也无线性映射</li>
+  <li><span class="badge badge-red">🅱🅲</span> <strong>视觉跨域几乎致命</strong> — GR00T 训练分布是 RoboCasa / 真实 G1 / GR-1 相机；HumanoidBench MuJoCo 渲染 + 单视角 + 无 wrist view = "换了个世界"（DeepSeek 原话）</li>
+  <li><span class="badge badge-red">🅰🅱🅲</span> <strong>Task 优先级原版排错</strong>：HB cube 是 <em>双手 in-hand reorientation</em>（精细接触最难），不是 PickOrange tabletop pick；highbar 是 whole-body locomotion，<strong>应从 manipulation 计划删除</strong></li>
+  <li><span class="badge badge-yellow">🅱🅲</span> <strong>Action API 不是 <code>.predict()</code></strong> — GR00T 用 ZMQ <code>PolicyServer</code>/<code>PolicyClient</code>；action chunk horizon 实际 ~16；4 步 flow matching 去噪；15 Hz 控制频率（DROID example）</li>
+  <li><span class="badge badge-green">🅱🅲</span> <strong>更聪明的路径</strong>：Day 1-2 跑官方 LIBERO/DROID demo 闭环；Day 3-4 Isaac Lab GR-1/G1 closed-loop（白皮书已验证）；Day 5-7 才进 HB，先 ReplayPolicy smoke test，后期靠 LoRA finetune 而非 zero-shot</li>
+</ul>
+
+<h2>1. 三方原文摘要 / Three reviewers in their own words</h2>
+
+<div class="three-col">
+<div class="reviewer-A">
+  <h4>🅰 Opus 4.7（本机 ground truth）</h4>
+  <p><strong>读到的真相</strong>：</p>
+  <ul class="tight">
+    <li>N1.7 backbone = <code>nvidia/Cosmos-Reason2-2B</code>（Qwen + SigLip2）</li>
+    <li>Flow-matching diffusion action transformer，<code>action_horizon=50</code>，<code>num_inference_timesteps=4</code></li>
+    <li>训练 embodiment：<code>xdof_relative_eef_*</code>、<code>oxe_droid_*</code>、<code>real_g1_*</code>、<code>real_r1_pro_sharpa_*</code> — <strong>无 H1</strong></li>
+    <li>REAL_G1 modality keys = <code>left_wrist_eef_9d, right_wrist_eef_9d, left_hand, right_hand, left_arm, right_arm, waist, base_height_command, navigate_command</code></li>
+    <li>video <code>delta_indices = [-20, 0]</code> ⇒ 21 帧历史</li>
+    <li><code>max_state_dim/max_action_dim = 128</code>，<code>max_num_embodiments = 32</code></li>
+  </ul>
+</div>
+<div class="reviewer-B">
+  <h4>🅱 GPT-5.5（外部源码 + Policy Guide）</h4>
+  <p><strong>关键判定</strong>：</p>
+  <ul class="tight">
+    <li>"7D 给 arm，54D 给 reach skill 基本是糊纸墙"</li>
+    <li>"DROID zero-shot 期望外部相机 + wrist camera，HB 单 rgb_array 缺 wrist view"</li>
+    <li>"<code>embodiment_id</code> 不是装饰，它索引 embodiment-specific encoder/decoder；H1Hand 没有对应 id，这就是核心风险"</li>
+    <li>"cube 是双手 in-hand reorientation，不是 PickOrange — 把'物体是 cube'当相似性是坏抽象"</li>
+    <li>"highbar 不该放在这条线里 — 是 whole-body dynamic locomotion"</li>
+    <li>"success_rate &gt; 0 太低，随机碰一下也算成功"</li>
+  </ul>
+</div>
+<div class="reviewer-C">
+  <h4>🅲 DeepSeek-V4-Pro（白皮书 + model card）</h4>
+  <p><strong>关键判定</strong>：</p>
+  <ul class="tight">
+    <li>"<span class="verdict">视觉域差距是最致命的</span>。不是'换个角度'，是'换了个世界'"</li>
+    <li>"H1 和 G1 的手是<strong>两种生物</strong>：G1 平行爪 ~2D vs H1 DEX3-1 ~30D 五指"</li>
+    <li>"GR00T 不是 model.predict() — 用 ZMQ server-client 架构，<code>run_gr00t_server.py</code> + <code>PolicyClient</code>"</li>
+    <li>"Action horizon 上限 16（不是 config 里的 40，那是训练上限）。4 步去噪"</li>
+    <li>"<code>use_percentiles: true</code> normalization — G1 统计 ≠ H1 物理范围，直接 scale 会动作爆炸"</li>
+    <li>"HumanoidBench MuJoCo 渲染对 GR00T 来说像没见过的外星风景 — 不 fine-tune 几乎不可能任何 nonzero success rate"</li>
+  </ul>
+</div>
+</div>
+
+<h2>2. §1 架构与 Action Mapping — <span style="color:#d9534f">致命错误</span></h2>
+
+<h3>原计划的错</h3>
+
+<pre>
+（原计划）
+GR00T action_dim ≈ 7  →  H1 right_arm 7D joints
+剩余 54D            →  reach skill 兜底
+</pre>
+
+<h3>实际 N1.7 REAL_G1 action schema（🅰 本机 config 直读）</h3>
+
+<table>
+<tr><th>modality_key</th><th>维度</th><th>表征 / Representation</th><th>HB H1Hand 对应？</th></tr>
+<tr><td><code>left_wrist_eef_9d</code></td><td>9D</td><td>RELATIVE · EEF · XYZ + ROT6D</td><td>需 IK（G1 60cm 臂 → H1 90cm 臂）</td></tr>
+<tr><td><code>right_wrist_eef_9d</code></td><td>9D</td><td>RELATIVE · EEF · XYZ + ROT6D</td><td>同上</td></tr>
+<tr><td><code>left_arm</code></td><td>~7D</td><td>RELATIVE · NON_EEF · joint delta</td><td>冗余于 EEF（GR00T 同时给两路）</td></tr>
+<tr><td><code>right_arm</code></td><td>~7D</td><td>RELATIVE · NON_EEF · joint delta</td><td>同上</td></tr>
+<tr><td><code>left_hand</code></td><td>~1D</td><td>ABSOLUTE · gripper position</td><td><span class="badge badge-red">不可映射</span> H1 DEX3-1 30D 五指 vs G1 平行爪</td></tr>
+<tr><td><code>right_hand</code></td><td>~1D</td><td>ABSOLUTE · gripper position</td><td>同上</td></tr>
+<tr><td><code>waist</code></td><td>~1D</td><td>ABSOLUTE · joint</td><td>H1 无 waist joint（torso 整体）</td></tr>
+<tr><td><code>base_height_command</code></td><td>~1D</td><td>ABSOLUTE</td><td>HB 无 mobile base — mask</td></tr>
+<tr><td><code>navigate_command</code></td><td>~3D</td><td>ABSOLUTE</td><td>HB 无 — mask</td></tr>
+<tr style="font-weight:600; background:#fff7e6"><td>合计</td><td>~38D / chunk</td><td>40 时间步 chunk → 40×38</td><td>—</td></tr>
+</table>
+
+<div class="quote-B">🅱：你需要一个确定的低层接口：EEF delta → IK/QP/WBC → 61D normalized action。GR00T 只出目标或 delta，HB 关节控制由控制器管。VLA 直接写 61D，基本没戏。</div>
+
+<div class="quote-C">🅲：用 REAL_G1 tag，对 GR00T 输出的 EEF 做 IK 映射到 H1 arm joints，手部别想了，腰部/底盘指令直接忽略。</div>
+
+<h3>修订方案（三方融合）</h3>
+
+<div class="svg-wrap">
+<svg width="900" height="240" viewBox="0 0 900 240">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+  </defs>
+  <!-- GR00T -->
+  <rect x="20" y="80" width="180" height="80" rx="8" fill="#76b900" stroke="#5a8c00" stroke-width="2"/>
+  <text x="110" y="115" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">GR00T-N1.7</text>
+  <text x="110" y="135" text-anchor="middle" fill="#fff" font-size="11">tag=REAL_G1</text>
+  <text x="110" y="150" text-anchor="middle" fill="#fff" font-size="11">~38D chunk × 40</text>
+
+  <!-- Split -->
+  <line x1="200" y1="120" x2="260" y2="60"  stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="200" y1="120" x2="260" y2="120" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="200" y1="120" x2="260" y2="180" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- EEF -->
+  <rect x="260" y="40" width="200" height="50" rx="6" fill="#fff" stroke="#0066cc" stroke-width="2"/>
+  <text x="360" y="60" text-anchor="middle" font-size="12" font-weight="700">两臂 EEF 9D×2 (XYZ+ROT6D)</text>
+  <text x="360" y="78" text-anchor="middle" font-size="10" fill="#555">RELATIVE delta</text>
+
+  <!-- Hand -->
+  <rect x="260" y="100" width="200" height="50" rx="6" fill="#fff" stroke="#d9534f" stroke-width="2"/>
+  <text x="360" y="120" text-anchor="middle" font-size="12" font-weight="700">left/right_hand (G1 平行爪)</text>
+  <text x="360" y="138" text-anchor="middle" font-size="10" fill="#d9534f">⚠ 与 H1 DEX3-1 不兼容</text>
+
+  <!-- Waist/base -->
+  <rect x="260" y="160" width="200" height="50" rx="6" fill="#fff" stroke="#888" stroke-width="2"/>
+  <text x="360" y="180" text-anchor="middle" font-size="12" font-weight="700">waist + base + navigate</text>
+  <text x="360" y="198" text-anchor="middle" font-size="10" fill="#555">HB 无对应 — mask 掉</text>
+
+  <!-- Arrows to adapter -->
+  <line x1="460" y1="65" x2="540" y2="80"  stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="460" y1="125" x2="540" y2="125" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Adapter -->
+  <rect x="540" y="60" width="180" height="130" rx="8" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="630" y="85" text-anchor="middle" font-size="13" font-weight="700">HB Adapter</text>
+  <text x="630" y="105" text-anchor="middle" font-size="11">① IK: EEF→H1 arms 14D</text>
+  <text x="630" y="122" text-anchor="middle" font-size="11">② grasp preset:</text>
+  <text x="630" y="137" text-anchor="middle" font-size="11">G1 gripper → H1 DEX3</text>
+  <text x="630" y="157" text-anchor="middle" font-size="11">③ legs/torso = 0 or</text>
+  <text x="630" y="172" text-anchor="middle" font-size="11">reach skill (locked)</text>
+
+  <!-- HB env -->
+  <line x1="720" y1="125" x2="780" y2="125" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="780" y="85" width="100" height="80" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="830" y="115" text-anchor="middle" font-size="13" font-weight="700">HB env</text>
+  <text x="830" y="135" text-anchor="middle" font-size="11">61D action</text>
+  <text x="830" y="150" text-anchor="middle" font-size="11">[-1, 1]^61</text>
+</svg>
+<div style="font-size:0.85em; color:#555;"><em>Action pipeline 修订：从"7D 黑盒 + reach 兜底" → "EEF + IK + grasp preset + 关节锁定"</em></div>
+</div>
+
+<h2>3. §2 观测对齐 — <span style="color:#d9534f">视觉跨域几乎致命</span></h2>
+
+<table>
+<tr><th>项</th><th>GR00T 期望</th><th>HumanoidBench 现状</th><th>差距严重度</th></tr>
+<tr><td>视角数</td><td>ego_view（头部）+ 部分 embodiment wrist_view</td><td>单 <code>rgb_array</code>（任务相机）</td><td><span class="badge badge-red">🔴 缺 wrist 关键</span></td></tr>
+<tr><td>历史帧</td><td>21 帧（<code>delta_indices = [-20, 0]</code>）</td><td>需要自行缓冲</td><td><span class="badge badge-yellow">🟡 可补</span></td></tr>
+<tr><td>分辨率</td><td>224×224（image_target_size）</td><td>可 resize</td><td><span class="badge badge-green">🟢</span></td></tr>
+<tr><td>渲染分布</td><td>RoboCasa / 真实 G1 / GR-1 / R1_pro</td><td>MuJoCo 默认材质 + HB scene XML</td><td><span class="badge badge-red">🔴 OOD</span></td></tr>
+<tr><td>相机外参</td><td>真机/RoboCasa 校准</td><td>HB <code>default_camera_config</code> 任意</td><td><span class="badge badge-red">🔴 不可控</span></td></tr>
+</table>
+
+<div class="quote-C">🅲：HumanoidBench 的 MuJoCo 渲染跟 GR00T 训练分布完全不同。Zero-shot 视觉泛化基本不可能 — 这不是"换个角度"，是"换了个世界"。</div>
+
+<h2>4. §3 Embodiment / Prompt — <span style="color:#f5a623">可配但效果未知</span></h2>
+
+<ul>
+  <li><strong>没有 H1 embodiment tag</strong>。最接近的入口 = <code>real_g1_relative_eef_relative_joints</code>（双手人形，但 G1 130cm vs H1 180cm，臂长差 30cm）</li>
+  <li>Language key（G1 schema）= <code>annotation.human.task_description</code></li>
+  <li>Prompt 风格：短句、动作导向、贴训练语料
+    <ul class="tight">
+      <li>✅ <code>"pick up the cube"</code> / <code>"open the cabinet door"</code> / <code>"wipe the window"</code></li>
+      <li>❌ HB reward 描述 / 多目标长句 / 多步任务分解</li>
+    </ul>
+  </li>
+  <li><strong>Policy API 是 nested dict</strong>，不是 chat：
+  <pre>obs = {
+    "video.ego_view":       (1, 21, 224, 224, 3) uint8,
+    "state.left_wrist_eef_9d":   (1, 1, 9) float32,
+    ...
+    "annotation.human.task_description": ["pick up the cube"],
+}</pre>
+  </li>
+  <li><strong>调用方式</strong>：GR00T 用 ZMQ <code>PolicyServer</code> / <code>PolicyClient</code>，不是 <code>model.predict()</code>
+  <pre># Terminal 1
+python gr00t/eval/run_gr00t_server.py \
+    --model-path nvidia/GR00T-N1.7-3B \
+    --embodiment-tag REAL_G1 --device cuda:0
+# Terminal 2 — HumanoidBench wrapper 通过 PolicyClient.get_action() 调</pre>
+  </li>
+</ul>
+
+<h2>5. §4 Task 优先级修订</h2>
+
+<table>
+<tr><th>Task</th><th>原计划 / 🅰</th><th>🅱 GPT-5.5 建议</th><th>🅲 DeepSeek 建议</th><th>三方共识</th></tr>
+<tr><td><code>cube</code></td><td>1（最早）</td><td>后段</td><td>1</td><td>⚖️ 分歧：双手 in-hand reorientation 极难，但 prompt 简单</td></tr>
+<tr><td><code>window</code></td><td>2</td><td>1（EEF traj + grasp preset 易构造）</td><td>4</td><td>🅱 视角下早期可试</td></tr>
+<tr><td><code>cabinet</code></td><td>5</td><td>3</td><td>2（RoboCasa 训练分布最近）</td><td><span class="badge badge-green">✅ 提前</span></td></tr>
+<tr><td><code>kitchen</code></td><td>4</td><td>4（长时序 prompt 漂）</td><td>3（RoboCasa 重合）</td><td>中段</td></tr>
+<tr><td><code>spoon</code></td><td>3</td><td>1（同 window 思路）</td><td>5</td><td>分歧</td></tr>
+<tr><td><code>insert</code></td><td>6</td><td>后段</td><td>6</td><td><span class="badge badge-red">🔴 精细接触最难</span></td></tr>
+<tr><td><code>highbar</code></td><td>7</td><td><strong>删除</strong> — 不是 manipulation</td><td><strong>删除</strong> — 体操任务 0 训练交集</td><td><span class="badge badge-red">❌ 移出 manipulation 线</span></td></tr>
+</table>
+
+<div class="callout warn">
+<strong>修订后优先级（融合）/ Revised priority</strong><br>
+<strong>1.</strong> <code>cabinet</code>（RoboCasa OOD 距离最小 + 容错高）→
+<strong>2.</strong> <code>window</code>（单手 EEF traj，可对 GR00T 双臂输出取一）→
+<strong>3.</strong> <code>kitchen</code>（同 RoboCasa 分布，但长时序 prompt 漂风险）→
+<strong>4.</strong> <code>spoon</code>（工具交互，OOD）→
+<strong>5.</strong> <code>cube</code>（双手 in-hand reorientation — 留到 finetune 后）→
+<strong>6.</strong> <code>insert</code>（精细接触 — finetune 后）→
+<strong>×</strong> <code>highbar</code>（删除）
+</div>
+
+<h2>6. §5 Base Model 选择</h2>
+
+<table>
+<tr><th>Ckpt</th><th>验证状态</th><th>用法</th><th>判定</th></tr>
+<tr><td><code>nvidia/GR00T-N1.7-3B</code>（官方 base）</td><td>✅ 已下载 6.4GB</td><td>REAL_G1 tag zero-shot 入口</td><td><span class="badge badge-green">主力</span></td></tr>
+<tr><td><code>nvidia/GR00T-N1.6-3B</code></td><td>✅ cache</td><td>稳定性 baseline 对照</td><td><span class="badge badge-gray">备选</span></td></tr>
+<tr><td><code>nvidia/GR00T-N1.5-3B</code></td><td>✅ cache</td><td>更老 baseline</td><td><span class="badge badge-gray">备选</span></td></tr>
+<tr><td><code>hi-space/GR00T-N1.7-3B-Pick-Orange</code></td><td>✅ cache</td><td>窄分布 finetune（WidowX/Google Robot 单臂）</td><td><span class="badge badge-red">不要用于 H1</span> — 锁死分布，🅲："等于拿摩托车驾照开飞机"</td></tr>
+<tr><td><code>wsagi/GR00T-N1.6-PickOrange</code></td><td>✅ cache</td><td>自训 finetune 参考</td><td><span class="badge badge-gray">参考其 trainer state</span></td></tr>
+<tr><td>未来：<code>NEW_EMBODIMENT</code> finetune</td><td>❌ 待训</td><td>20-50 demo + LoRA</td><td><span class="badge badge-green">🟢 长期解法</span></td></tr>
+</table>
+
+<h2>7. §6 致命遗漏清单 / Engineering pitfalls</h2>
+
+<ol>
+  <li><strong>Action chunk horizon</strong>：N1.7 训练 horizon=50（config）但<strong>推理上限 16</strong>（DeepSeek）— 别傻 open-loop 跑 40 步</li>
+  <li><strong>Diffusion timesteps</strong>：<code>num_inference_timesteps=4</code>（flow matching 快速去噪）</li>
+  <li><strong>控制频率</strong>：DROID example 用 15 Hz；HB 默认 100 Hz；<strong>需 action_repeat ≈ 6-7</strong> 对齐</li>
+  <li><strong>Normalization</strong>：<code>use_percentiles=true</code>，依赖 <code>statistics.json</code>（G1 数据）。直接喂 H1 物理范围会动作爆炸 — 必须先 normalize 到 G1 量级</li>
+  <li><strong>EEF 旋转 6D ↔ 旋转矩阵</strong> 换算极易反向，需单元测试</li>
+  <li><strong>HB action space</strong> 是 <code>[-1, 1]^61</code> normalized，<strong>不是关节角弧度</strong></li>
+  <li><strong>21 帧历史</strong>：cold start 时前 20 步要么复制首帧要么 zero-pad — 影响初始动作</li>
+  <li><strong>Reset 分布固定</strong>：物体初态随机化太大，zero-shot 看起来失败可能是初态外的问题</li>
+  <li><strong>"success_rate &gt; 0" 太低</strong>（🅱）— 随机碰一下也算；改为 <strong>"mean_return &gt; baseline + sanity 视频"</strong></li>
+  <li><strong>没有 <code>chat_template.json</code></strong>（🅲 实测 404）— prompt 直接走 text encoder，不要套 chat 格式</li>
+</ol>
+
+<h2>8. §7 一周 Shortcut — 三方共识路径</h2>
+
+<div class="svg-wrap">
+<svg width="900" height="200" viewBox="0 0 900 200">
+  <defs>
+    <marker id="arr2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+  </defs>
+  <!-- Day 1-2 -->
+  <rect x="20" y="40" width="200" height="120" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="120" y="65" text-anchor="middle" font-size="13" font-weight="700">Day 1-2</text>
+  <text x="120" y="85" text-anchor="middle" font-size="11">官方 LIBERO/DROID</text>
+  <text x="120" y="100" text-anchor="middle" font-size="11">demo 跑通 pipeline</text>
+  <text x="120" y="120" text-anchor="middle" font-size="10" fill="#555">PolicyServer + Client</text>
+  <text x="120" y="135" text-anchor="middle" font-size="10" fill="#555">open-loop MSE 统计</text>
+  <text x="120" y="153" text-anchor="middle" font-size="10" fill="#1a7333" font-weight="600">→ 出第一个 demo 视频</text>
+
+  <line x1="220" y1="100" x2="240" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+  <!-- Day 3-4 -->
+  <rect x="240" y="40" width="200" height="120" rx="8" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="340" y="65" text-anchor="middle" font-size="13" font-weight="700">Day 3-4</text>
+  <text x="340" y="85" text-anchor="middle" font-size="11">Isaac Lab GR-1/G1</text>
+  <text x="340" y="100" text-anchor="middle" font-size="11">closed-loop eval</text>
+  <text x="340" y="120" text-anchor="middle" font-size="10" fill="#555">白皮书已验证</text>
+  <text x="340" y="135" text-anchor="middle" font-size="10" fill="#555">24 个 Digital Cousin</text>
+  <text x="340" y="153" text-anchor="middle" font-size="10" fill="#8a6500" font-weight="600">→ 复刻官方结果</text>
+
+  <line x1="440" y1="100" x2="460" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+  <!-- Day 5-7 -->
+  <rect x="460" y="40" width="200" height="120" rx="8" fill="#fdecea" stroke="#d9534f" stroke-width="2"/>
+  <text x="560" y="65" text-anchor="middle" font-size="13" font-weight="700">Day 5-7</text>
+  <text x="560" y="85" text-anchor="middle" font-size="11">HumanoidBench wrapper</text>
+  <text x="560" y="100" text-anchor="middle" font-size="11">NEW_EMBODIMENT + IK</text>
+  <text x="560" y="120" text-anchor="middle" font-size="10" fill="#555">先 ReplayPolicy smoke test</text>
+  <text x="560" y="135" text-anchor="middle" font-size="10" fill="#555">cabinet / window 优先</text>
+  <text x="560" y="153" text-anchor="middle" font-size="10" fill="#99332f" font-weight="600">→ zero-shot 大概率全 0</text>
+
+  <line x1="660" y1="100" x2="680" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+  <!-- Week 2+ -->
+  <rect x="680" y="40" width="200" height="120" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="780" y="65" text-anchor="middle" font-size="13" font-weight="700">Week 2+</text>
+  <text x="780" y="85" text-anchor="middle" font-size="11">收 20-50 episode</text>
+  <text x="780" y="100" text-anchor="middle" font-size="11">scripted/reach demos</text>
+  <text x="780" y="120" text-anchor="middle" font-size="10" fill="#555">NEW_EMBODIMENT + LoRA</text>
+  <text x="780" y="135" text-anchor="middle" font-size="10" fill="#555">finetune cabinet/window</text>
+  <text x="780" y="153" text-anchor="middle" font-size="10" fill="#5a8c00" font-weight="600">→ 目标 nonzero success</text>
+</svg>
+</div>
+
+<h2>9. 修订后的执行计划 / Revised plan</h2>
+
+<div class="callout ok">
+<strong>核心变更 / Core changes</strong>
+<ol>
+  <li><strong>放弃 "7 task zero-shot"</strong> 目标 — 改为 "证明 pipeline 闭环 + 1-2 task fine-tune nonzero success"</li>
+  <li><strong>Highbar 移出 manipulation 线</strong> — 是 whole-body locomotion，转交 DR.Q 或独立计划</li>
+  <li><strong>第一周不碰 HB</strong> — 强制走官方 LIBERO/DROID + Isaac Lab GR-1 闭环</li>
+  <li><strong>Adapter 设计</strong>：REAL_G1 tag → EEF + IK → H1 arms (14D)；hand 用 grasp preset；legs/torso 锁定或 reach skill；waist/base/navigate mask</li>
+  <li><strong>架构</strong>：PolicyServer (ZMQ) + HB-side PolicyClient wrapper</li>
+  <li><strong>验证步骤补充</strong>：先用 ReplayPolicy 跑通 HB env loop，再换真实模型</li>
+  <li><strong>Finetune 预算预留</strong>：20-50 episodes scripted/reach-skill demos → LoRA</li>
+</ol>
+</div>
+
+<h3>新版 First-3-steps checklist</h3>
+
+<ol>
+  <li><strong>Step 1 — 官方 demo 闭环（不碰 HB）</strong><br>
+  <code>git clone https://github.com/NVIDIA/Isaac-GR00T</code>，跑 LIBERO 或 DROID example，启 PolicyServer + Client，open-loop MSE 跑通，录视频。
+  <br><em>Acceptance：官方 demo 视频跑出来，pipeline 通。</em></li>
+
+  <li><strong>Step 2 — HB → GR00T observation adapter</strong><br>
+  写 <code>scripts/groot_hb_adapter.py</code>：HB obs → REAL_G1 nested dict（state 用 H1 FK 算 EEF + gripper proxy；video 用 HB camera + 21 帧 ring buffer + 224×224 resize）。先用 ReplayPolicy 验环境循环，不调真实模型。
+  <br><em>Acceptance：reset → obs → step → reward 循环不崩，obs dict shape 全对。</em></li>
+
+  <li><strong>Step 3 — 接 GR00T-N1.7 REAL_G1 zero-shot on cabinet</strong><br>
+  PolicyClient.get_action() → IK (EEF → H1 arms) → grasp preset → HB action[-1,1]^61。一个 episode 不崩 + 录视频。
+  <br><em>Acceptance：完整 episode 不爆 normalization；视频里 arm 朝 cabinet 方向移动（不要求成功，要求"看起来在尝试"）。</em></li>
+</ol>
+
+<h2>10. 三方原话："如果是我，我会..."</h2>
+
+<div class="three-col">
+<div class="reviewer-B">
+<h4>🅱 GPT-5.5</h4>
+<div class="quote-B">
+砍掉"7 task zero-shot"这个虚胖目标。第一天打通官方 DROID inference；第二天写 HB EEF/IK adapter；第三天只做 window/spoon 视频；第四到七天收少量 HB demos 微调 NEW_EMBODIMENT。<strong>先证明闭环控制链路，再谈泛化。</strong>
+</div>
+</div>
+<div class="reviewer-C">
+<h4>🅲 DeepSeek-V4-Pro</h4>
+<div class="quote-C">
+先 fork Isaac-GR00T，装上现有的 LIBERO eval pipeline 跑通 demo 录个视频（1 天）。然后切到 REAL_G1 tag，用 Isaac Lab 的 GR-1 环境做 closed-loop eval（3 天）。<strong>HumanoidBench 留到最后，第一周不要碰</strong> — 逼自己前面出 demo。Zero-shot 大概率全归零，准备好最小 fine-tune 预算。
+</div>
+</div>
+<div class="reviewer-A">
+<h4>🅰 Opus 4.7（综合）</h4>
+<div class="quote-A">
+🅱 + 🅲 共识非常清晰：<strong>放弃 zero-shot 7 task 目标，改打闭环 + finetune 两阶段</strong>。本地 ground truth 也证明 action schema 是 38D × 40 chunk 而非 7D — 原计划修订成"REAL_G1 tag + EEF→IK adapter + LoRA finetune"是唯一可行路径。第一周目标改为"两条 demo 视频 + ReplayPolicy smoke test 通过"。
+</div>
+</div>
+</div>
+
+<hr>
+
+<h2>11. 参考资料 / References</h2>
+
+<ul>
+  <li><a href="https://huggingface.co/nvidia/GR00T-N1.7-3B">nvidia/GR00T-N1.7-3B</a> — model card + processor_config + statistics</li>
+  <li><a href="https://github.com/NVIDIA/Isaac-GR00T">NVIDIA/Isaac-GR00T</a> — 源码 (PolicyServer / embodiment_tags / examples/DROID)</li>
+  <li><a href="https://github.com/NVIDIA/Isaac-GR00T/blob/main/getting_started/policy.md">Isaac-GR00T Policy Guide</a> — nested obs dict 格式</li>
+  <li><a href="https://arxiv.org/abs/2503.14734">GR00T N1 White Paper</a> (arXiv:2503.14734)</li>
+  <li><code>~/.cache/huggingface/hub/models--nvidia--GR00T-N1.7-3B/snapshots/*/</code> — 本机 ground truth：<code>processor_config.json</code> · <code>experiment_cfg/config.yaml</code> · <code>final_model_config.json</code> · <code>statistics.json</code></li>
+  <li><code>.claude/memory/project_groot_zeroshot_plan.md</code> — 原计划（已被本评审推翻）</li>
+  <li><code>docs/manipulation_policy_brainstorm.html</code> — 上一轮 manipulation gap 头脑风暴</li>
+  <li>本地 review 全文：<code>/tmp/groot_codex.log</code>（GPT-5.5）· <code>/tmp/groot_opencode.log</code>（DeepSeek-V4-Pro）</li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Triangulated across Opus 4.7 (local) + GPT-5.5 (web) + DeepSeek-V4-Pro (web)
+</p>
+
+</body>
+</html>

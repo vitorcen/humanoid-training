@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GR00T HumanoidBench 六决策对齐 / Six-Decision Alignment</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1040px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #76b900; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.9em; color: #76b900; border-left: 4px solid #76b900; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.94em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #eef7e0; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #76b900; background: #f3fae5; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-blue { background: #d4e4f7; color: #1a4a7d; }
+  .svg-wrap { text-align: center; margin: 1em 0; background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.8em; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1em 0; }
+  .two-col > div { background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.9em; }
+  .opus { border-top: 4px solid #cc6600; }
+  .codex { border-top: 4px solid #0066cc; }
+  .verdict { font-weight: 700; color: #1a7333; }
+  .quote-O { border-left: 3px solid #cc6600; padding: 0.3em 0.8em; background: #fff8f0; margin: 0.5em 0; font-style: italic; font-size: 0.95em; }
+  .quote-C { border-left: 3px solid #0066cc; padding: 0.3em 0.8em; background: #f0f6ff; margin: 0.5em 0; font-style: italic; font-size: 0.95em; }
+  .decision-card { background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 1em; margin: 0.8em 0; }
+  .decision-head { background: #76b900; color: #fff; padding: 0.4em 0.8em; border-radius: 4px; display: inline-block; font-weight: 700; margin-bottom: 0.5em; }
+</style>
+</head>
+<body>
+
+<h1>GR00T × HumanoidBench — 六决策对齐</h1>
+<em class="en">Six-decision alignment: Opus 4.7 × Codex GPT-5.5 — engineering plan, not review</em>
+
+<div class="callout info">
+<strong>文档定位 / Scope</strong>：本文是<strong>工程决策对齐</strong>，不是评审。在用户已锁定四个目标（自微调 · ≥30% success · 人形 · MuJoCo/Isaac 实时 GUI）的前提下，由 Claude Opus 4.7 与 Codex GPT-5.5 两个模型就 6 个关键岔路口逐一表态、对齐、给执行细节，最终落到"今天就动的第一个 commit"。
+<br><br>
+<em>This is decision alignment, not review. With user goals fixed (custom finetune · ≥30% success · humanoid · live MuJoCo/Isaac GUI), two models hash out six engineering forks and converge on a concrete day-0 commit.</em>
+</div>
+
+<div class="callout ok">
+<strong>四目标 / Four locked goals</strong>
+<ol>
+  <li>✅ <strong>自微调</strong>（NEW_EMBODIMENT tag — 用户已在 SO-101 PickOrange 拿 68.3% SOTA 验证）</li>
+  <li>✅ <strong>eval 成功率 ≥30%</strong> on ≥1 个 HumanoidBench manipulation task</li>
+  <li>✅ <strong>人形机器人</strong>（Unitree H1 / H1Hand 61D 或 G1 23D after BlockedHands）</li>
+  <li>✅ <strong>MuJoCo / Isaac Lab 实时 GUI 预览</strong>（边训边看，不是事后回放）</li>
+</ol>
+</div>
+
+<h2>0. TL;DR — 六决策一句话总结</h2>
+<em class="en">Bottom line: six aligned decisions</em>
+
+<div class="svg-wrap">
+<svg width="940" height="280" viewBox="0 0 940 280">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#1a7333"/>
+    </marker>
+  </defs>
+  <!-- Top: 6 decisions chain -->
+  <rect x="20" y="20" width="140" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="90" y="45" text-anchor="middle" font-size="11" font-weight="700">D1 数据来源</text>
+  <text x="90" y="65" text-anchor="middle" font-size="10">reach skill (b)</text>
+  <text x="90" y="80" text-anchor="middle" font-size="10">+ scripted FSM (a)</text>
+  <text x="90" y="93" text-anchor="middle" font-size="9" fill="#555">50 ep · 1 day</text>
+
+  <rect x="180" y="20" width="140" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="250" y="45" text-anchor="middle" font-size="11" font-weight="700">D2 Action 空间</text>
+  <text x="250" y="65" text-anchor="middle" font-size="10">legs 锁 standing</text>
+  <text x="250" y="80" text-anchor="middle" font-size="10">action = 28D</text>
+  <text x="250" y="93" text-anchor="middle" font-size="9" fill="#555">14 arms + 14 hands</text>
+
+  <rect x="340" y="20" width="140" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="410" y="45" text-anchor="middle" font-size="11" font-weight="700">D3 DEX3-1 手</text>
+  <text x="410" y="65" text-anchor="middle" font-size="10">3-state preset</text>
+  <text x="410" y="80" text-anchor="middle" font-size="10">open/half/close</text>
+  <text x="410" y="93" text-anchor="middle" font-size="9" fill="#555">→ 7D synergy qpos</text>
+
+  <rect x="500" y="20" width="140" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="570" y="45" text-anchor="middle" font-size="11" font-weight="700">D4 GUI</text>
+  <text x="570" y="65" text-anchor="middle" font-size="10">MuJoCo passive</text>
+  <text x="570" y="80" text-anchor="middle" font-size="10">+ ZMQ client</text>
+  <text x="570" y="93" text-anchor="middle" font-size="9" fill="#555">100Hz/30Hz align</text>
+
+  <rect x="660" y="20" width="140" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="730" y="45" text-anchor="middle" font-size="11" font-weight="700">D5 第一 Task</text>
+  <text x="730" y="65" text-anchor="middle" font-size="10" font-weight="700" fill="#1a7333">window</text>
+  <text x="730" y="80" text-anchor="middle" font-size="10">单手 EEF traj</text>
+  <text x="730" y="93" text-anchor="middle" font-size="9" fill="#555">base 不动最干净</text>
+
+  <rect x="820" y="20" width="100" height="80" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="870" y="45" text-anchor="middle" font-size="11" font-weight="700">D6 Eval</text>
+  <text x="870" y="65" text-anchor="middle" font-size="10">N=10 ep × 3 seeds</text>
+  <text x="870" y="80" text-anchor="middle" font-size="10">HB info[success]</text>
+  <text x="870" y="93" text-anchor="middle" font-size="9" fill="#555">+ ckpt-eval watcher</text>
+
+  <!-- Bottom: pipeline -->
+  <line x1="470" y1="110" x2="470" y2="140" stroke="#1a7333" stroke-width="2" marker-end="url(#ar)"/>
+
+  <rect x="20" y="150" width="900" height="120" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="470" y="175" text-anchor="middle" font-size="13" font-weight="700">今天就动的第一个 commit / Day-0 commit</text>
+
+  <rect x="50" y="190" width="270" height="60" rx="6" fill="#fff" stroke="#28a745" stroke-width="1"/>
+  <text x="185" y="208" text-anchor="middle" font-size="11" font-weight="700">scripts/hb_collect_window_demos.py</text>
+  <text x="185" y="225" text-anchor="middle" font-size="10">create h1hand-window-v0</text>
+  <text x="185" y="240" text-anchor="middle" font-size="10">rollout 50 ep → LeRobot parquet</text>
+
+  <rect x="335" y="190" width="270" height="60" rx="6" fill="#fff" stroke="#28a745" stroke-width="1"/>
+  <text x="470" y="208" text-anchor="middle" font-size="11" font-weight="700">humanoid_training/hb/window_controller.py</text>
+  <text x="470" y="225" text-anchor="middle" font-size="10">WindowFSM</text>
+  <text x="470" y="240" text-anchor="middle" font-size="10">28D upper-body action + hand preset</text>
+
+  <rect x="620" y="190" width="270" height="60" rx="6" fill="#fff" stroke="#28a745" stroke-width="1"/>
+  <text x="755" y="208" text-anchor="middle" font-size="11" font-weight="700">configs/hb_window_groot.yaml</text>
+  <text x="755" y="225" text-anchor="middle" font-size="10">embodiment_tag: new_embodiment</text>
+  <text x="755" y="240" text-anchor="middle" font-size="10">action_dim:28 · 30Hz/100Hz</text>
+</svg>
+</div>
+
+<h2>1. 讨论范式 / Discussion format</h2>
+
+<div class="two-col">
+<div class="opus">
+<h4>🅰 Claude Opus 4.7（本机 ground truth）</h4>
+<ul class="tight">
+  <li>读完用户 sister repo 实测配置（<code>conf.yaml</code> · <code>experiment_cfg/</code>）</li>
+  <li>知道 HB / DR.Q / HumanoidBench-SelfTrained notebook 全栈细节</li>
+  <li>抛出 6 个岔路口 + tentative answer 给 Codex</li>
+</ul>
+</div>
+<div class="codex">
+<h4>🅱 Codex (GPT-5.5)（外部视角 + web search）</h4>
+<ul class="tight">
+  <li>查证：HB 是否有公开 manipulation demos、GR00T 是否有人跑过 HB、LeRobot H1/G1 Dex3 数据</li>
+  <li>对每个决策表态 + 修正 Opus 的 tentative answer</li>
+  <li>给出 "今天第一个 commit" 文件路径 + 内容草稿</li>
+</ul>
+</div>
+</div>
+
+<h3>Codex 验证的外部事实</h3>
+
+<table>
+<tr><th>问题</th><th>结论</th><th>影响</th></tr>
+<tr><td>HumanoidBench 是否有公开 manipulation demo 数据集？</td><td>❌ <strong>没有</strong>。官方只给 env + RL code + reach low-level policy 权重，没有 imitation demos。</td><td><span class="badge badge-red">我们是开荒者，必须自建 demos</span></td></tr>
+<tr><td>有没有人把 GR00T finetune 跑过 HumanoidBench？</td><td>❌ <strong>没有公开结果</strong>（issue / paper / HF 都查不到）</td><td><span class="badge badge-yellow">没有可参考的成功 baseline，但也意味着空白机会</span></td></tr>
+<tr><td>LeRobot 是否有 H1 / G1 dexterous hand 数据？</td><td>✅ LeRobot 已支持 Unitree G1；Unitree fork 有 <code>G1_Dex3 → LeRobot</code> 转换；HF 有 Psi0 G1 loco-manipulation、Humanoid Everyday 数据集</td><td><span class="badge badge-green">可参考 LeRobot schema 设计 H1 dataset 格式</span></td></tr>
+</table>
+
+<h2>2. 六决策详谈</h2>
+
+<div class="decision-card">
+<div class="decision-head">决策 1 · Demo 数据来源</div>
+<h3>共识：(b) reach skill bbox + (a) scripted FSM</h3>
+
+<table>
+<tr><th>候选</th><th>🅰 Opus</th><th>🅱 Codex</th><th>对齐结果</th></tr>
+<tr><td>(a) Scripted IK + FSM</td><td>✅ 推荐</td><td>✅</td><td rowspan="5"><strong>(b) + (a) 混合</strong>，<br>RL rollout 暂不用</td></tr>
+<tr><td>(b) 补 <code>htarget_low/high</code> bbox → 复用 HB reach skill</td><td>✅ 推荐</td><td>✅</td></tr>
+<tr><td>(c) Mocap retarget (AMASS)</td><td>放 M3+</td><td>不碰</td></tr>
+<tr><td>(d) RL ckpt rollout</td><td>放 M3</td><td>"今天交不出数字"</td></tr>
+<tr><td>(e) Isaac Lab GR-1 收数据</td><td>放弃</td><td>"换 sim 会把问题扩大"</td></tr>
+</table>
+
+<div class="quote-C">🅱：先 50 ep，30 clean + 20 randomized；半天补 bbox/FSM，一天收数据和过滤，晚上跑第一版 finetune。</div>
+
+<h4>执行预算</h4>
+<ul class="tight">
+  <li>30 ep 干净（FSM 跑成功）+ 20 ep 加噪（初态随机 + 抓取偏移）= 50 ep</li>
+  <li>时间预算：<strong>1.5 天</strong>（半天补 bbox + FSM，1 天收数据 + finetune）</li>
+  <li>过滤标准：episode 末 <code>info["success"]=True</code> 或人眼判断"看起来动作合理"</li>
+</ul>
+</div>
+
+<div class="decision-card">
+<div class="decision-head">决策 2 · Action Space — legs 锁还是不锁</div>
+<h3>共识：(X) legs 锁 standing preset，action = 28D</h3>
+
+<table>
+<tr><th>候选</th><th>🅰 Opus</th><th>🅱 Codex</th></tr>
+<tr><td>(X) legs 锁，arms+hands only</td><td>✅ "数据同等下收敛快"</td><td>✅ "full 61D 自找麻烦"</td></tr>
+<tr><td>(Y) Full 61D end-to-end</td><td>放弃（10× 维度）</td><td>放弃</td></tr>
+</table>
+
+<div class="quote-C">🅱：state 仍可保留 full proprio padding 到 132D，但 action mask 只写双臂 14D + 双手 14D，其余关节 replay preset。</div>
+
+<h4>具体维度分配</h4>
+<table>
+<tr><th>组件</th><th>维度</th><th>用法</th></tr>
+<tr><td>left_arm</td><td>7D</td><td>GR00T action 主控（joint qpos）</td></tr>
+<tr><td>right_arm</td><td>7D</td><td>GR00T action 主控</td></tr>
+<tr><td>left_hand</td><td>7D</td><td>GR00T action 但来自 3-state preset（见 D3）</td></tr>
+<tr><td>right_hand</td><td>7D</td><td>同上</td></tr>
+<tr><td><strong>action 总计</strong></td><td><strong>28D</strong></td><td>从 GR00T 出来的</td></tr>
+<tr><td>legs + pelvis</td><td>11D</td><td>replay standing preset（不进 GR00T action）</td></tr>
+<tr><td>torso/waist</td><td>剩余</td><td>同 standing preset</td></tr>
+<tr><td><strong>HB env 输入</strong></td><td><strong>61D</strong></td><td>= 28D from GR00T + 33D from preset</td></tr>
+</table>
+
+<p><strong>state 输入</strong>给 GR00T 时 pad 到 max_state_dim=132（与 SO-101 conf 一致），multi-modality keys：<code>left_arm, right_arm, left_hand, right_hand, legs (read-only)</code>。</p>
+</div>
+
+<div class="decision-card">
+<div class="decision-head">决策 3 · DEX3-1 手指处理</div>
+<h3>共识：(R) 3-state preset，但 action 写连续 qpos</h3>
+
+<table>
+<tr><th>候选</th><th>🅰 Opus</th><th>🅱 Codex</th></tr>
+<tr><td>(P) 21D 全开</td><td>留给 M3+</td><td>"无意义自由度"</td></tr>
+<tr><td>(Q) PCA 7D synergy</td><td>—</td><td>—</td></tr>
+<tr><td>(R) 3-state preset → 连续 qpos</td><td>✅ 起步</td><td>✅ "把无意义自由度从第一版清掉"</td></tr>
+</table>
+
+<div class="quote-C">🅱：action 里仍写连续 qpos，不写离散 token；open/half/close 映射成 7D hand qpos preset。window 用 open/half，cabinet handle 才用 close/power grasp。</div>
+
+<h4>三态 preset 设计</h4>
+<pre>HAND_PRESETS = {  # 7D synergy → DEX3-1 actual joints (21D) via fixed mapping
+    "open":  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],  # 全张开
+    "half":  [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3],  # 半握（捏物体）
+    "close": [1.0, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5],  # power grasp
+}
+# action 数据集里 hand 字段写连续 qpos（来自 preset 插值），不是 token</pre>
+</div>
+
+<div class="decision-card">
+<div class="decision-head">决策 4 · 实时 GUI 预览方案</div>
+<h3>共识：(α) MuJoCo passive viewer + ZMQ PolicyClient</h3>
+
+<table>
+<tr><th>候选</th><th>🅰 Opus</th><th>🅱 Codex</th></tr>
+<tr><td>(α) MuJoCo passive viewer</td><td>✅</td><td>✅ "别切 Isaac Lab，换 sim 会把问题扩大"</td></tr>
+<tr><td>(β) Isaac Lab GR-1 RTX 渲染</td><td>放弃</td><td>放弃</td></tr>
+</table>
+
+<h4>频率对齐（Codex 详细方案）</h4>
+
+<div class="svg-wrap">
+<svg width="900" height="180" viewBox="0 0 900 180">
+  <!-- MuJoCo timeline (100Hz) -->
+  <text x="20" y="35" font-size="12" font-weight="700">MuJoCo sim (100 Hz)</text>
+  <line x1="20" y1="50" x2="880" y2="50" stroke="#0066cc" stroke-width="1.5"/>
+  <!-- ticks -->
+  <g font-size="8" fill="#555">
+  <!-- 30 ticks at 100Hz over 300ms -->
+  </g>
+  <!-- Mark every 10th tick (= 100ms = 10 Hz GR00T re-plan) -->
+  <g>
+  <line x1="20" y1="45" x2="20" y2="55" stroke="#0066cc"/>
+  <line x1="60" y1="45" x2="60" y2="55" stroke="#0066cc"/>
+  <line x1="100" y1="45" x2="100" y2="55" stroke="#0066cc"/>
+  <line x1="140" y1="45" x2="140" y2="55" stroke="#0066cc"/>
+  <line x1="180" y1="45" x2="180" y2="55" stroke="#0066cc"/>
+  <line x1="220" y1="45" x2="220" y2="55" stroke="#0066cc"/>
+  <line x1="260" y1="45" x2="260" y2="55" stroke="#0066cc"/>
+  <line x1="300" y1="45" x2="300" y2="55" stroke="#0066cc"/>
+  <line x1="340" y1="45" x2="340" y2="55" stroke="#0066cc"/>
+  <line x1="380" y1="45" x2="380" y2="55" stroke="#0066cc"/>
+  </g>
+  <!-- Policy timeline (30Hz) -->
+  <text x="20" y="95" font-size="12" font-weight="700">GR00T chunk re-plan (≈ 10 Hz, every 10 MuJoCo ticks)</text>
+  <g>
+  <rect x="20" y="105" width="340" height="30" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="190" y="125" text-anchor="middle" font-size="11">execute chunk[0:10] · re-plan at t+10</text>
+  <rect x="360" y="105" width="340" height="30" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="530" y="125" text-anchor="middle" font-size="11">execute new chunk[0:10] · re-plan at t+20</text>
+  </g>
+  <!-- Annotation -->
+  <text x="20" y="160" font-size="11" fill="#1a7333">
+    每 chunk 40 步 future actions，只执行前 10 步；剩 30 步作为 future conditioning，下次重算时被覆盖。
+  </text>
+  <text x="20" y="175" font-size="11" fill="#1a7333">
+    Each chunk has 40 future actions; execute first 10; horizon 40 serves as conditioning, not committed action.
+  </text>
+</svg>
+</div>
+
+<h4>实现伪代码</h4>
+<pre>import mujoco, mujoco.viewer, zmq, gymnasium as gym, humanoid_bench
+
+env = gym.make("h1hand-window-v0", render_mode="rgb_array")
+obs, _ = env.reset()
+base = env.unwrapped
+sock = zmq.Context().socket(zmq.REQ); sock.connect("tcp://127.0.0.1:5555")
+
+CHUNK_HORIZON = 40   # GR00T 输出
+EXECUTE_FIRST = 10   # 只执行前 10 步
+chunk = None; t_chunk = 0
+
+with mujoco.viewer.launch_passive(base.model, base.data) as viewer:
+    while viewer.is_running():
+        if chunk is None or t_chunk &gt;= EXECUTE_FIRST:
+            obs_dict = build_groot_obs(env, obs)              # nested dict
+            sock.send_pyobj({"obs": obs_dict})
+            chunk = sock.recv_pyobj()["action"][0]            # (40, 28)
+            t_chunk = 0
+        a_groot = chunk[t_chunk]                              # (28,) arms+hands
+        a_hb = compose_hb_action(arms_hands=a_groot,
+                                 legs=STANDING_PRESET)        # → (61,)
+        obs, _, term, trunc, _ = env.step(a_hb)
+        viewer.sync()
+        t_chunk += 1
+        if term or trunc: obs, _ = env.reset(); chunk = None
+</pre>
+</div>
+
+<div class="decision-card">
+<div class="decision-head">决策 5 · 第一个 Task — window 不是 cabinet</div>
+<h3>共识：window（Opus 让步）</h3>
+
+<table>
+<tr><th>候选</th><th>🅰 Opus 初版</th><th>🅱 Codex</th><th>最终</th></tr>
+<tr><td>cabinet</td><td>第一</td><td>"需要 base 移到柜前，legs 锁后做不到；window 更干净"</td><td>第二（base 锁定问题解决后）</td></tr>
+<tr><td><strong>window</strong></td><td>第二</td><td><strong>第一</strong>，"base 不动这个约束下 window 最干净"</td><td><span class="badge badge-green">✅ 第一</span></td></tr>
+<tr><td>spoon</td><td>—</td><td>"工具抓取 + 倾倒，比 cabinet 复杂"</td><td>第三</td></tr>
+</table>
+
+<div class="quote-O">🅰 Opus 让步理由：legs 锁站姿的约束下 cabinet 拉门轨迹会被 base 不能后退所打断 — 这个工程约束没考虑到，window 单手 EEF traj 是 minimal 验证。</div>
+
+<h4>Window FSM 设计（Codex 草案）</h4>
+<pre># humanoid_training/hb/window_controller.py
+class WindowFSM:
+    STATES = ["approach", "grip", "slide", "release"]
+
+    def reset(self, env):
+        self.state = "approach"; self.t = 0
+        self.handle_pos = env.unwrapped.get_handle_pose()    # from htarget_high bbox
+        self.target_slide_dist = 0.30                          # 30 cm 推开
+
+    def target_action(self, obs):
+        ee_pos = obs_to_ee_pos(obs, side="right")
+        if self.state == "approach":
+            arm_target = ik_solve(target=self.handle_pos + [0,0,0.05])
+            hand = HAND_PRESETS["open"]
+            if dist(ee_pos, self.handle_pos) &lt; 0.03: self.state = "grip"
+        elif self.state == "grip":
+            arm_target = ik_solve(target=self.handle_pos)
+            hand = HAND_PRESETS["half"]
+            if self.t &gt; 10: self.state = "slide"          # hold 10 ticks
+        elif self.state == "slide":
+            arm_target = ik_solve(target=self.handle_pos + [self.target_slide_dist, 0, 0])
+            hand = HAND_PRESETS["half"]
+            if dist_along_x &gt; self.target_slide_dist - 0.02: self.state = "release"
+        else:
+            arm_target = ee_pos + [0, 0, 0.1]                # 抬起 10cm
+            hand = HAND_PRESETS["open"]
+        self.t += 1
+        return np.concatenate([arm_target, hand,
+                               np.zeros(14)])                  # left arm+hand zero</pre>
+
+<p>Success 判定：HB 内置 <code>info["success"]</code> + window joint progress &gt; threshold（不要一上来搞双手 / 工具 / 移动 base）。</p>
+</div>
+
+<div class="decision-card">
+<div class="decision-head">决策 6 · Eval &amp; 训练监控</div>
+<h3>共识：N=10 ep × 3 seeds，watcher 重写不复用 slice early-stop</h3>
+
+<table>
+<tr><th>项</th><th>方案</th></tr>
+<tr><td>Eval 协议</td><td>固定 <strong>N=10 episode × 3 seeds</strong>（与 DR.Q sister 路线对齐），用 HB 自带 <code>info["success"]</code> + <code>success_bar</code></td></tr>
+<tr><td>报告指标</td><td>mean success rate · per-episode wall-clock · <strong>失败阶段分布</strong>（approach / grip / slide / release 哪步失败）</td></tr>
+<tr><td>训练监控 v1</td><td>GR00T 自带 <code>trainer_state.json</code> loss 曲线 + 每 N checkpoint 跑 30-episode eval</td></tr>
+<tr><td>Watcher 复用</td><td><code>scripts/train_watcher.py</code> 改造成 <strong>ckpt-eval watcher</strong>（每出 ckpt → mirror → eval → 写 JSONL）— <strong>不沿用 SO-101 的 slice early-stop 逻辑</strong>（imitation 没有 RL 的 reward 曲线，slice 没意义）</td></tr>
+<tr><td>Early-stop 策略</td><td>看 ckpt-eval success rate 滑窗：连续 3 个 ckpt 不增长 → 早停</td></tr>
+</table>
+
+<div class="quote-C">🅱：train_watcher.py 可以复用成 checkpoint/eval watcher，但别用 SO-101 的 slice early-stop 逻辑硬套。</div>
+</div>
+
+<h2>3. 唯一分歧（已解决）</h2>
+
+<table>
+<tr><th>问题</th><th>🅰 初版</th><th>🅱 立场</th><th>解决</th></tr>
+<tr><td>第一个 task = cabinet 还是 window？</td><td>cabinet（RoboCasa 训练分布最近 + 容错高）</td><td>window（legs 锁站姿约束下 cabinet 做不动，window 单手 EEF 最干净）</td><td><strong>Opus 让步</strong> — 工程约束（base 不能移动）让 window 成为唯一最小可行选项</td></tr>
+</table>
+
+<h2>4. 完整里程碑（基于 6 决策更新）</h2>
+
+<table>
+<tr><th>Milestone</th><th>内容</th><th>时间</th><th>出口指标</th></tr>
+<tr><td><strong>M0</strong></td><td>第一个 commit（见下节）+ env smoke test</td><td>今天</td><td>HB env loop + viewer + PolicyServer 三方启动</td></tr>
+<tr><td><strong>M1</strong></td><td>给 window 补 <code>htarget_low/high</code> bbox + WindowFSM 跑通 + 1 ep 录像合理</td><td>Day 2</td><td>FSM 单 episode 内 success（在 reach skill 辅助下）</td></tr>
+<tr><td><strong>M2</strong></td><td>50 ep dataset (30 clean + 20 randomized) → LeRobot parquet</td><td>Day 3</td><td>parquet 文件 schema 与 GR00T trainer 兼容</td></tr>
+<tr><td><strong>M3</strong></td><td>NEW_EMBODIMENT finetune v1（28D action_dim，6h 训练）</td><td>Day 3 晚 - Day 4</td><td>trainer_state.json loss 收敛 + ckpt-30 eval nonzero</td></tr>
+<tr><td><strong>M4</strong></td><td>Closed-loop eval N=10×3 seeds + viewer 录像</td><td>Day 5</td><td>window success rate &gt; 0% (任何 nonzero 算成功)</td></tr>
+<tr><td><strong>M5</strong></td><td>Self-improve loop：v1 rollout → 收 100+ ep → finetune v2</td><td>Week 2</td><td>window ≥30% success（用户目标 #2 达成）</td></tr>
+<tr><td><strong>M6</strong></td><td>扩到 cabinet / kitchen / spoon（base 锁仍可做的子集）</td><td>Week 3-4</td><td>≥3 task ≥10% success</td></tr>
+<tr><td><strong>M7</strong></td><td>HF 发布 <code>wsagi/GR00T-HBench-H1</code> + notebook</td><td>Week 4+</td><td>与 DR.Q 路线并列发布</td></tr>
+</table>
+
+<h2>5. 今天就动的第一个 commit / Day-0 commit</h2>
+
+<div class="callout ok">
+<strong>三个新文件 + 一个 patch</strong>
+</div>
+
+<h3>① <code>scripts/hb_collect_window_demos.py</code></h3>
+<pre>"""Collect 50 episodes of h1hand-window-v0 demos via WindowFSM.
+
+Output: LeRobot parquet format, schema compatible with GR00T NEW_EMBODIMENT trainer.
+"""
+import argparse, gymnasium as gym, humanoid_bench, numpy as np
+from pathlib import Path
+from humanoid_training.hb.window_controller import WindowFSM, STANDING_PRESET
+# ... LeRobot v0.4.0 dataset writer (复用 sister repo pattern)
+# 50 ep: 30 clean (FSM full success) + 20 randomized (object init perturbation)
+# write to LeIsaac/datasets/v2-gr00t/hb-window/  (mirror sister repo layout)</pre>
+
+<h3>② <code>humanoid_training/hb/window_controller.py</code></h3>
+<pre>"""WindowFSM + standing preset + IK helper for H1Hand.
+
+reset() / observe(env) / target_action(obs) -&gt; 28D arms+hands action.
+"""
+import numpy as np
+
+HAND_PRESETS = {
+    "open":  np.array([0.0]*7),
+    "half":  np.array([0.5]*6 + [0.3]),
+    "close": np.array([1.0, 0.9, 0.9, 0.9, 0.9, 0.7, 0.5]),
+}
+
+# H1 standing preset: legs+pelvis 11D, neutral posture
+STANDING_PRESET = np.zeros(33)  # actual values TBD from h1.py default qpos
+STANDING_PRESET[0:11] = ...      # legs+pelvis qpos when standing
+
+class WindowFSM:
+    STATES = ["approach", "grip", "slide", "release"]
+    def reset(self, env): ...
+    def target_action(self, obs) -&gt; np.ndarray:  # (28,)
+        """returns [left_arm 7D, right_arm 7D, left_hand 7D, right_hand 7D]"""
+        ...
+
+def compose_hb_action(arms_hands_28d: np.ndarray) -&gt; np.ndarray:
+    """28D from GR00T/FSM + 33D STANDING_PRESET → 61D HB action."""
+    return np.concatenate([arms_hands_28d, STANDING_PRESET])</pre>
+
+<h3>③ <code>configs/hb_window_groot.yaml</code></h3>
+<pre># GR00T NEW_EMBODIMENT finetune config — HumanoidBench H1Hand window task
+# 基于 sister repo gr00t-n17-leisaac-pick-orange conf.yaml 修改
+model:
+  model_name: nvidia/Cosmos-Reason2-2B
+  action_horizon: 40
+  num_inference_timesteps: 4
+  use_percentiles: true
+  use_relative_action: true
+  max_state_dim: 132
+  max_action_dim: 132        # 实际只用 28D，剩余 pad
+  state_dropout_prob: 0.2
+  tune_llm: false
+  tune_visual: false
+  tune_projector: true
+  tune_diffusion_model: true
+  tune_vlln: true
+  image_target_size: [256, 256]
+
+data:
+  datasets:
+  - dataset_paths: [datasets/hb-window/]
+    embodiment_tag: new_embodiment
+    mix_ratio: 1.0
+  modality_configs:
+    new_embodiment:
+      video:
+        delta_indices: [0]
+        modality_keys: [task_view]            # HB single camera
+      state:
+        delta_indices: [0]
+        modality_keys: [left_arm, right_arm, left_hand, right_hand, legs]
+      action:
+        delta_indices: [0..39]                # 40-step chunk
+        modality_keys: [left_arm, right_arm, left_hand, right_hand]
+        # action_dim 实际 = 28 (7+7+7+7), pad to 132 by trainer
+
+runtime:
+  task: h1hand-window-v0
+  control_hz: 30                              # GR00T re-plan rate
+  sim_hz: 100                                 # MuJoCo
+  action_repeat: 10                           # chunk[0:10] before re-plan
+  ep_per_seed: 10
+  eval_seeds: [0, 42, 99]</pre>
+
+<h3>④ <code>patches/hb-window-htarget.patch</code></h3>
+<p>给 <code>dependencies/humanoid-bench/humanoid_bench/tasks/window.py</code> 补 <code>htarget_low</code> / <code>htarget_high</code> bbox，使 reach skill 可以辅助 FSM approach 阶段。</p>
+
+<h2>6. 风险与退路 / Risk register</h2>
+
+<table>
+<tr><th>风险</th><th>概率</th><th>退路</th></tr>
+<tr><td>WindowFSM IK 不收敛（H1 7D arm 解空间）</td><td>中</td><td>退到 joint-space 关键帧插值，不用 IK</td></tr>
+<tr><td>50 ep 数据不够，finetune v1 success=0%</td><td>中</td><td>加 20 ep + state_dropout_prob 提高到 0.3 + image aug 加强</td></tr>
+<tr><td>GR00T 在 N1.7 base 上学不到 28D action 模式（dim mismatch issue）</td><td>低</td><td>退到 SO-101 一样的 modality 简化设计：合并 left/right 成 single bilateral key</td></tr>
+<tr><td>HB MuJoCo 渲染 OOD 致命</td><td>中-高</td><td>image aug + albumentations（sister repo 已开 <code>use_albumentations_transforms: true</code>）；最坏退到 IK pure scripted（不需要 GR00T）</td></tr>
+<tr><td>30 Hz GR00T inference 跟不上 100 Hz MuJoCo 实时</td><td>低</td><td>chunk 执行延长到 [0:20]（hold 时间加倍）；最坏离线录制，不强求实时</td></tr>
+<tr><td>用户工程量超预算（demo 收集 + finetune + adapter 同时做）</td><td>高</td><td>SO-101 sister pipeline 已验证 90% 可复用，真正新代码 &lt; 500 行</td></tr>
+</table>
+
+<h2>7. 与 DR.Q 路线的协作 / Coexist with DR.Q</h2>
+
+<p>本项目两条并行训练主线：</p>
+
+<div class="svg-wrap">
+<svg width="900" height="220" viewBox="0 0 900 220">
+  <!-- DR.Q line -->
+  <rect x="40" y="40" width="380" height="160" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="230" y="65" text-anchor="middle" font-size="14" font-weight="700">DR.Q (RL from scratch)</text>
+  <text x="230" y="85" text-anchor="middle" font-size="11">locomotion: walk · run · stand · pole · crawl · highbar</text>
+  <text x="230" y="110" text-anchor="middle" font-size="11" font-weight="700" fill="#1a7333">✅ 已发布</text>
+  <text x="230" y="125" text-anchor="middle" font-size="11" fill="#1a7333">wsagi/HumanoidBench-DR.Q</text>
+  <text x="230" y="140" text-anchor="middle" font-size="11" fill="#555">H1-walk 90% / G1-walk 70%</text>
+  <text x="230" y="165" text-anchor="middle" font-size="10" fill="#555">scripts/drq_viewer.py + train_watcher.py + ckpt_eval_loop.py</text>
+  <text x="230" y="180" text-anchor="middle" font-size="10" fill="#555">runs/h1_walk_pilot · runs/g1_walk_pdbh_pilot</text>
+
+  <!-- GR00T line -->
+  <rect x="480" y="40" width="380" height="160" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="670" y="65" text-anchor="middle" font-size="14" font-weight="700">GR00T (NEW_EMBODIMENT finetune)</text>
+  <text x="670" y="85" text-anchor="middle" font-size="11">manipulation: window · cabinet · kitchen · spoon · cube · insert</text>
+  <text x="670" y="110" text-anchor="middle" font-size="11" font-weight="700" fill="#8a6500">🟡 本路线 M0-M7</text>
+  <text x="670" y="125" text-anchor="middle" font-size="11" fill="#8a6500">未来 wsagi/GR00T-HBench-H1</text>
+  <text x="670" y="140" text-anchor="middle" font-size="11" fill="#555">起步 window，扩 cabinet/kitchen</text>
+  <text x="670" y="165" text-anchor="middle" font-size="10" fill="#555">scripts/hb_collect_window_demos.py + hb_window_groot.yaml</text>
+  <text x="670" y="180" text-anchor="middle" font-size="10" fill="#555">复用 sister Isaac-GR00T venv + PolicyServer</text>
+</svg>
+</div>
+
+<p>两条线在 <code>HumanoidBench.ipynb</code> 共存：按任务类型自动选 backend（DR.Q 出 locomotion，GR00T 出 manipulation）。</p>
+
+<hr>
+
+<h2>8. 参考资料 / References</h2>
+
+<ul>
+  <li><strong>本项目相关</strong>
+    <ul class="tight">
+      <li><code>docs/groot_zeroshot_review.html</code> — 上一版 zero-shot 计划三方评审（已被推翻）</li>
+      <li><code>docs/groot_so101_to_humanoid_migration.html</code> — 基于 SO-101 SOTA 经验的迁移路线（本文执行细节的支撑）</li>
+      <li><code>docs/manipulation_policy_brainstorm.html</code> — manipulation gap 12 条候选路径</li>
+      <li><code>docs/g1_training_strategies.html</code> — G1 训练策略</li>
+    </ul>
+  </li>
+  <li><strong>Sister repo 已验证工件</strong>
+    <ul class="tight">
+      <li><code>/home/david/work/isaaclab-experience/LeIsaac/outputs/gr00t-n17-leisaac-pick-orange/experiment_cfg/conf.yaml</code> — 直接套用的 finetune 配置</li>
+      <li><code>/home/david/work/isaaclab-experience/dependencies/Isaac-GR00T/</code> — N1.7 SDK</li>
+      <li><a href="https://huggingface.co/wsagi/GR00T-N1.7-PickOrange">wsagi/GR00T-N1.7-PickOrange</a>（用户自训 SOTA）</li>
+    </ul>
+  </li>
+  <li><strong>外部</strong>
+    <ul class="tight">
+      <li><a href="https://github.com/carlosferrazza/humanoid-bench">HumanoidBench repo</a></li>
+      <li><a href="https://github.com/NVIDIA/Isaac-GR00T">NVIDIA/Isaac-GR00T</a></li>
+      <li><a href="https://huggingface.co/nvidia/GR00T-N1.7-3B">nvidia/GR00T-N1.7-3B</a></li>
+      <li>LeRobot G1 docs · Unitree G1_Dex3 LeRobot fork · Psi0 G1 dataset · Humanoid Everyday（Codex web search 引用）</li>
+    </ul>
+  </li>
+  <li><strong>本次讨论原始 log</strong>
+    <ul class="tight">
+      <li><code>/tmp/groot_discuss.log</code> — Codex GPT-5.5 完整回复（含 6 决策 + 第一 commit 草案）</li>
+    </ul>
+  </li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Opus 4.7 × Codex GPT-5.5 alignment session
+</p>
+
+</body>
+</html>

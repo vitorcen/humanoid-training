@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GR00T SO-101 → Humanoid 迁移路线 / Migration Roadmap</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1040px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #76b900; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.9em; color: #76b900; border-left: 4px solid #76b900; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.94em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #eef7e0; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #76b900; background: #f3fae5; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-blue { background: #d4e4f7; color: #1a4a7d; }
+  .badge-nvidia { background: #76b900; color: #fff; }
+  .svg-wrap { text-align: center; margin: 1em 0; background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.8em; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1em 0; }
+  .two-col > div { background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.9em; }
+  .have { border-top: 4px solid #28a745; }
+  .need { border-top: 4px solid #f5a623; }
+  .verdict { font-weight: 700; color: #1a7333; }
+  blockquote { border-left: 3px solid #76b900; background: #f3fae5; margin: 0.8em 0; padding: 0.5em 1em; color: #333; }
+</style>
+</head>
+<body>
+
+<h1>GR00T SO-101 → Humanoid 迁移路线</h1>
+<em class="en">From a working GR00T finetune (SO-101 PickOrange SOTA 68.3%) to HumanoidBench manipulation</em>
+
+<div class="callout info">
+<strong>定位 / Scope</strong>：本文与 <code>docs/groot_zeroshot_review.html</code> 互补。后者评审 "<strong>zero-shot from scratch</strong>" 计划（已被三方推翻）；本文基于<strong>用户在 sister repo 已跑通的 GR00T-N1.7 NEW_EMBODIMENT finetune pipeline</strong>（SO-101 PickOrange 68.3% 自训第一），重新规划"<strong>同 pipeline 迁移到人形 manipulation</strong>"的现实路径。
+<br><br>
+<em>Companion to <code>groot_zeroshot_review.html</code>. That doc demolished the zero-shot plan; this one builds on the user's already-working SO-101 finetune pipeline.</em>
+</div>
+
+<h2>0. TL;DR</h2>
+<em class="en">Bottom line</em>
+
+<div class="callout ok">
+<strong class="verdict">✅ 不需要 zero-shot REAL_G1。NEW_EMBODIMENT pipeline 已验证可用。</strong>
+<ul class="tight">
+  <li>用户的 SO-101 SOTA finetune 用的就是 <code>embodiment_tag: new_embodiment</code>（不是 LIBERO / REAL_G1 等预训练 tag）— <strong>整套数据 → conf.yaml → finetune → PolicyServer → eval pipeline 已经实战通过</strong></li>
+  <li>训练 config 里 <code>max_state_dim=132 / max_action_dim=132</code>，HumanoidBench H1Hand 61D action <strong>完全在范围内</strong>，无需扩容模型</li>
+  <li>"先用 LIBERO/DROID demo 证明 pipeline 通"这条建议（来自上一轮 review）<span class="badge badge-green">✅ 跳过</span> — 用户已用同等强度任务证明过了</li>
+  <li><strong>真正的新挑战</strong>是 humanoid 特有的 3 件事：① demo 数据从哪儿收（HumanoidBench 不像 LeIsaac 那样有现成 teleop UI）；② SO-101 6D action → H1Hand 61D action 的 modality config 重设计；③ 双臂 dexterous + 全身协调（reach skill / leg lock）</li>
+</ul>
+</div>
+
+<h2>1. 起点 = 已通过的 SO-101 finetune（不要忘了你有什么）</h2>
+<em class="en">What's already working — don't re-invent it</em>
+
+<div class="callout info">
+<strong>实战成绩 / Validated results</strong>（sister repo strict 20-round eval）：
+<ul class="tight">
+  <li>🥇 <code>wsagi/GR00T-N1.7-PickOrange</code> — <strong>68.3% E(🍊)/ep</strong>（榜单第一，击败 hi-space N1.7 66.7%）</li>
+  <li>🥈 <code>wsagi/GR00T-N1.6-PickOrange</code> — 46.7%</li>
+  <li>Action horizon h=40 经实测最佳（不是 16，不是 50）</li>
+  <li>Peak VRAM 17.3 GB（4090 24GB 充裕）</li>
+</ul>
+</div>
+
+<h3>用户已掌握的工件（可直接复用到 humanoid）</h3>
+
+<table>
+<tr><th>工件 / Artifact</th><th>位置（sister repo）</th><th>humanoid 迁移可复用度</th></tr>
+<tr><td><code>conf.yaml</code> finetune 配置</td><td><code>LeIsaac/outputs/gr00t-n17-leisaac-pick-orange/experiment_cfg/conf.yaml</code></td><td><span class="badge badge-green">90%</span>，只改 modality_configs + dataset_path</td></tr>
+<tr><td><code>run_gr00t_server.py</code> ZMQ inference</td><td><code>dependencies/Isaac-GR00T/gr00t/eval/run_gr00t_server.py</code></td><td><span class="badge badge-green">100%</span>，server 不变；client 侧改 obs 构造</td></tr>
+<tr><td><code>gr00t_finetune.py</code> 训练入口</td><td><code>dependencies/Isaac-GR00T-N1.5/scripts/gr00t_finetune.py</code></td><td><span class="badge badge-green">100%</span></td></tr>
+<tr><td>LeRobot dataset 转换</td><td><code>dependencies/Isaac-GR00T/scripts/lerobot_conversion/</code></td><td><span class="badge badge-green">100%</span>，需重写 dataset_info（features schema）</td></tr>
+<tr><td>Multi-release env split (N1.5 / N1.6 / N1.7 venv 隔离)</td><td><code>doc/gr00t_multi_release_env_split.html</code></td><td><span class="badge badge-green">100%</span>（transformers ABI 冲突已解决）</td></tr>
+<tr><td>Strict 20-round eval harness</td><td><code>scripts/benchmark/run_all_strict.sh</code></td><td><span class="badge badge-yellow">60%</span>，统计方法可复用；HB eval driver 需新写</td></tr>
+<tr><td>SO-101 PickOrange 数据集（55 demos）</td><td><code>LeIsaac/datasets/v2-gr00t/leisaac-pick-orange/</code></td><td><span class="badge badge-red">0%</span> — 数据本身不可迁移，但 schema 模板可参</td></tr>
+</table>
+
+<h3>SO-101 conf.yaml 的关键参数（验证过的，迁移时基本不动）</h3>
+
+<pre>model:
+  model_name: nvidia/Cosmos-Reason2-2B    # N1.7 backbone (Qwen + SigLip2)
+  tune_llm: false                          # 冻 LLM
+  tune_visual: false                       # 冻 visual encoder
+  tune_projector: true                     # 训 projector
+  tune_diffusion_model: true               # 训 diffusion action head ← 关键
+  tune_vlln: true
+  action_horizon: 40                       # ← 实测最佳，不要改成 16
+  num_inference_timesteps: 4               # flow matching 去噪步数
+  use_percentiles: true                    # ← 关键 normalization
+  use_relative_action: true                # ← 关键
+  state_dropout_prob: 0.2                  # 数据增强
+  max_state_dim: 132                       # H1Hand 61D 完全在内
+  max_action_dim: 132
+  image_crop_size: [230, 230]
+  image_target_size: [256, 256]            # 不是 224×224
+  formalize_language: true
+data:
+  datasets:
+  - embodiment_tag: new_embodiment         # ← 不是 REAL_G1，是 new_embodiment</pre>
+
+<h2>2. SO-101 vs Humanoid — 关键差异表</h2>
+
+<table>
+<tr><th>维度</th><th>SO-101（已通过）</th><th>HumanoidBench H1Hand（目标）</th><th>挑战 Δ</th></tr>
+<tr><td>本体 / Embodiment</td><td>5 关节 + gripper 单臂桌面</td><td>Unitree H1 + 双 DEX3-1 5 指手 + 双腿</td><td><span class="badge badge-red">🔴 全身 vs 桌面</span></td></tr>
+<tr><td>Action dim</td><td>6D absolute joint position</td><td>61D normalized <code>[-1, 1]</code></td><td><span class="badge badge-red">10× 维度</span></td></tr>
+<tr><td>Action 性质</td><td>单 modality（joint）</td><td>需要分块：legs (锁定) + arms (主控) + hands (主控)</td><td><span class="badge badge-yellow">需 mask 设计</span></td></tr>
+<tr><td>State stream</td><td><code>single_arm + gripper</code>（2 个 key）</td><td>建议拆 <code>legs + waist + left_arm + right_arm + left_hand + right_hand</code></td><td><span class="badge badge-yellow">schema 重设计</span></td></tr>
+<tr><td>视角 / Cameras</td><td><strong>front + wrist</strong>（双视角）</td><td>HB 默认单 <code>rgb_array</code>（任务相机）</td><td><span class="badge badge-red">🔴 缺 wrist view</span></td></tr>
+<tr><td>渲染分布</td><td>Isaac Sim PBR + RTX</td><td>MuJoCo 默认材质（更朴素）</td><td><span class="badge badge-yellow">OOD 但 finetune 后可解</span></td></tr>
+<tr><td>数据来源</td><td>LeIsaac SO-101 leader-follower teleop（55 demos）</td><td><strong>没有现成 teleop</strong>，需自建</td><td><span class="badge badge-red">🔴 最大阻塞</span></td></tr>
+<tr><td>任务类型</td><td>pick & place（dz_max=0.20 settle gate）</td><td>双手 in-hand reorientation / 长时序 kitchen / 工具交互</td><td><span class="badge badge-red">🔴 复杂度高 5-10×</span></td></tr>
+<tr><td>控制频率</td><td>Isaac Sim sim_dt ≈ 60 Hz, action_repeat 默认</td><td>HB 100 Hz，需 action_repeat ≈ 5-10 对齐</td><td><span class="badge badge-green">易调</span></td></tr>
+<tr><td>VRAM</td><td>17.3 GB（4090 OK）</td><td>同模型 + 同 horizon → 同 VRAM</td><td><span class="badge badge-green">无新增</span></td></tr>
+</table>
+
+<div class="callout warn">
+<strong>简化判断</strong>：90% pipeline 不动（finetune script、PolicyServer、Cosmos-Reason2 backbone、horizon=40、percentile normalization）；10% 需重做 = <strong>(a) modality_configs schema</strong>，<strong>(b) HB observation adapter</strong>，<strong>(c) demo 数据采集流</strong>。这三件是本次的核心工程量。
+</div>
+
+<h2>3. 关键挑战 #1：Demo 数据怎么收？</h2>
+<em class="en">The single biggest blocker</em>
+
+<div class="callout danger">
+<strong>SO-101 时代你靠的是 LeIsaac SO-101 leader-arm teleop</strong>（人手摇杆带动从动臂 → 录下 trajectory）。
+<strong>HumanoidBench 没有这个</strong>。MuJoCo + dexterous hand + 全身协调，无法用单一遥操方案。需要混合策略。
+</div>
+
+<h3>四个候选数据源（按工程量排序）</h3>
+
+<div class="two-col">
+<div class="have">
+<h4>① Scripted reach skill <span class="badge badge-green">推荐起步</span></h4>
+<p>HumanoidBench 16 个 task 已内置 reach low-level skill（<code>htarget_low/high</code>）。可写脚本控制器：reach 到物体 → 简单抓取 preset → 移动到目标位姿。</p>
+<ul class="tight">
+  <li>✅ 完全 deterministic，可大量生成</li>
+  <li>✅ 不需要新硬件</li>
+  <li>⚠️ 5 个 manipulation gap task（cube/kitchen/cabinet/window/spoon/insert/highbar）<strong>没有 reach skill 定义</strong>，需先补 <code>htarget</code> bbox</li>
+  <li>⚠️ 数据多样性差 — 同一脚本生成的轨迹 finetune 后泛化弱</li>
+</ul>
+</div>
+<div class="have">
+<h4>② 自训 DR.Q rollout + 筛选 <span class="badge badge-yellow">可考虑</span></h4>
+<p>用户 H1-walk 90% / G1-walk 70% ckpt 已 ready，但只 locomotion。</p>
+<ul class="tight">
+  <li>❌ 无 manipulation 通关 ckpt 可作 demo 来源（这是整个项目要解的问题）</li>
+  <li>✅ 适用于"先 manipulation finetune 出 demo → 再 self-improve"的循环（M2-M3 阶段）</li>
+</ul>
+</div>
+<div class="need">
+<h4>③ 自建 mocap retarget <span class="badge badge-yellow">中等</span></h4>
+<p>用现成 human mocap（AMASS / SMPL-H）→ retarget 到 H1 + DEX3-1 → 录 video + action chunk。</p>
+<ul class="tight">
+  <li>✅ 数据自然多样</li>
+  <li>⚠️ Retarget 难度大，DEX3-1 五指难映射</li>
+  <li>⚠️ mocap 缺接触信号，HB success_bar 难达成</li>
+  <li>📚 参考 <code>docs/humanoid_motion_datasets_survey.html</code></li>
+</ul>
+</div>
+<div class="need">
+<h4>④ Teleop with VR / 手柄 <span class="badge badge-red">最重</span></h4>
+<p>把 LeIsaac teleop 思路移植到 HB MuJoCo：VR 控制器 → IK → H1 双臂 + 抓取 trigger。</p>
+<ul class="tight">
+  <li>✅ 数据质量最高</li>
+  <li>❌ 需要 VR 设备 + 写 MuJoCo VR bridge（无现成工具）</li>
+  <li>❌ 工程量超过整个 finetune 本身</li>
+</ul>
+</div>
+</div>
+
+<div class="callout info">
+<strong>推荐组合 / Recommended mix</strong>：①（scripted reach）+ ③（mocap retarget 局部使用）。
+<br>
+<strong>具体</strong>：先给 5 个 gap task 补 <code>htarget_low/high</code> bbox（已在 manipulation brainstorm Path B 列出），用 reach skill 生成 30-50 episode 脚本演示，做 NEW_EMBODIMENT finetune。第一轮成功后用 finetune 出的 policy rollout 收更多样化数据，做 self-improving loop。
+</div>
+
+<h2>4. 关键挑战 #2：modality_configs schema 重设计</h2>
+
+<h3>SO-101 schema（已通过）</h3>
+
+<pre>modality_configs:
+  new_embodiment:
+    video:
+      modality_keys: [front, wrist]              # 2 个视角
+    state:
+      modality_keys: [single_arm, gripper]       # 2 个 state stream
+    action:
+      delta_indices: [0..39]                     # 40 步 chunk
+      modality_keys: [single_arm, gripper]       # ← 同 state</pre>
+
+<h3>HumanoidBench schema 建议</h3>
+
+<pre>modality_configs:
+  new_embodiment:
+    video:
+      delta_indices: [0]                         # 单帧（HB 没有训练分布的多帧历史）
+      modality_keys: [task_view]                 # 用 task 默认相机
+      # 可选: 加 wrist_left, wrist_right 伪视角（需 HB env 改造）
+    state:
+      delta_indices: [0]
+      modality_keys:
+        - left_arm                               # 7D arm joints
+        - right_arm
+        - left_hand                              # ~21D DEX3-1
+        - right_hand
+        - legs                                   # 11D legs+pelvis (locked during manipulation)
+        - waist                                  # H1 没真 waist，可省
+    action:
+      delta_indices: [0..39]                     # 40 步 chunk，h=40
+      modality_keys:
+        - left_arm
+        - right_arm
+        - left_hand
+        - right_hand
+        # legs 不放入 action — 由 reach skill / lock 控制
+        # 或：放入 action 但 loss_weight=0.01，让模型学着"保持站立"</pre>
+
+<div class="callout warn">
+<strong>设计取舍</strong>：legs 放不放进 GR00T action 是关键决策。
+<ul class="tight">
+  <li><strong>不放</strong>（推荐起步）：HB 侧用 reach skill 或固定 standing 姿态控制 legs；GR00T 只学 arms+hands；好处是 GR00T 输出维度小、收敛快</li>
+  <li><strong>放</strong>：GR00T 学全身 23D（不含手）或 61D（含手）；好处是真 end-to-end；坏处是数据需求大 10×，可能不收敛</li>
+</ul>
+</div>
+
+<h2>5. 关键挑战 #3：HumanoidBench observation adapter</h2>
+
+<p>SO-101 时代你的 client 是 LeIsaac 的 ZMQ client，喂的是 SO-101 obs（front + wrist + joint）。HB 需要新写一个 wrapper：</p>
+
+<pre># scripts/groot_hb_client.py（新写）
+import zmq, numpy as np, gymnasium as gym, humanoid_bench
+
+# 1. 启动 PolicyServer（不变）
+#    python run_gr00t_server.py --model-path runs/gr00t_hb_cabinet/ \
+#                                --embodiment-tag NEW_EMBODIMENT --port 5555
+
+env = gym.make("h1hand-cabinet-v0", render_mode="rgb_array")
+obs, _ = env.reset()
+sock = zmq.Context().socket(zmq.REQ); sock.connect("tcp://127.0.0.1:5555")
+
+while not done:
+    # 2. HB obs → GR00T nested dict
+    obs_dict = {
+        "video.task_view": env.render()[None],                     # (1, H, W, 3) uint8
+        "state.left_arm":  hb_obs_to_left_arm(obs)[None],          # (1, 7) float32
+        "state.right_arm": hb_obs_to_right_arm(obs)[None],
+        "state.left_hand": hb_obs_to_left_hand(obs)[None],         # (1, 21)
+        "state.right_hand": hb_obs_to_right_hand(obs)[None],
+        "annotation.human.task_description": ["open the cabinet drawer"],
+    }
+    sock.send_pyobj({"obs": obs_dict})
+    resp = sock.recv_pyobj()              # action chunk (1, 40, action_dim)
+
+    # 3. GR00T action chunk → HB 61D action
+    for t in range(40):
+        a_groot = resp["action"][0, t]    # (action_dim,) — 仅 arms+hands
+        a_hb = compose_hb_action(
+            arms_hands=a_groot,           # 主控
+            legs=standing_preset,         # legs 锁定
+        )
+        obs, r, term, trunc, _ = env.step(a_hb)
+        if term or trunc: break</pre>
+
+<p>对应的 <code>hb_obs_to_*</code> + <code>compose_hb_action</code> 需要查 <code>dependencies/humanoid-bench/humanoid_bench/h1.py</code> 的 joint 顺序。</p>
+
+<h2>6. 修订执行计划 / Revised execution plan</h2>
+
+<div class="svg-wrap">
+<svg width="940" height="280" viewBox="0 0 940 280">
+  <defs>
+    <marker id="ma" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <!-- Milestone bar -->
+  <line x1="50" y1="40" x2="890" y2="40" stroke="#76b900" stroke-width="3"/>
+  <circle cx="120" cy="40" r="7" fill="#76b900"/>
+  <circle cx="320" cy="40" r="7" fill="#76b900"/>
+  <circle cx="520" cy="40" r="7" fill="#76b900"/>
+  <circle cx="720" cy="40" r="7" fill="#76b900"/>
+  <circle cx="870" cy="40" r="7" fill="#76b900"/>
+
+  <text x="120" y="25" text-anchor="middle" font-size="11" font-weight="700">M0 (今天)</text>
+  <text x="320" y="25" text-anchor="middle" font-size="11" font-weight="700">M1 (Day 2-3)</text>
+  <text x="520" y="25" text-anchor="middle" font-size="11" font-weight="700">M2 (Week 1)</text>
+  <text x="720" y="25" text-anchor="middle" font-size="11" font-weight="700">M3 (Week 2-3)</text>
+  <text x="870" y="25" text-anchor="middle" font-size="11" font-weight="700">M4 (Week 4+)</text>
+
+  <!-- M0 -->
+  <rect x="40" y="60" width="160" height="190" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="120" y="80" text-anchor="middle" font-size="11" font-weight="700">Bootstrap</text>
+  <text x="120" y="98" text-anchor="middle" font-size="9.5">复制 sister conf.yaml</text>
+  <text x="120" y="112" text-anchor="middle" font-size="9.5">建 humanoid-training</text>
+  <text x="120" y="124" text-anchor="middle" font-size="9.5">下属 gr00t venv</text>
+  <text x="120" y="138" text-anchor="middle" font-size="9.5">link sister scripts/</text>
+  <text x="120" y="155" text-anchor="middle" font-size="9.5" fill="#555">PolicyServer smoke</text>
+  <text x="120" y="167" text-anchor="middle" font-size="9.5" fill="#555">test (用 sister</text>
+  <text x="120" y="179" text-anchor="middle" font-size="9.5" fill="#555">PickOrange ckpt)</text>
+  <text x="120" y="205" text-anchor="middle" font-size="9" fill="#1a7333" font-weight="600">出口：server 启动</text>
+  <text x="120" y="218" text-anchor="middle" font-size="9" fill="#1a7333" font-weight="600">+ HB env loop OK</text>
+
+  <!-- M1 -->
+  <rect x="240" y="60" width="160" height="190" rx="8" fill="#f3fae5" stroke="#76b900" stroke-width="2"/>
+  <text x="320" y="80" text-anchor="middle" font-size="11" font-weight="700">Schema + Adapter</text>
+  <text x="320" y="98" text-anchor="middle" font-size="9.5">写 HB modality_config</text>
+  <text x="320" y="112" text-anchor="middle" font-size="9.5">写 obs adapter (HB</text>
+  <text x="320" y="124" text-anchor="middle" font-size="9.5">→ nested dict)</text>
+  <text x="320" y="138" text-anchor="middle" font-size="9.5">写 action composer</text>
+  <text x="320" y="150" text-anchor="middle" font-size="9.5">(arms+hands → 61D)</text>
+  <text x="320" y="167" text-anchor="middle" font-size="9.5" fill="#555">ReplayPolicy smoke</text>
+  <text x="320" y="179" text-anchor="middle" font-size="9.5" fill="#555">test</text>
+  <text x="320" y="205" text-anchor="middle" font-size="9" fill="#5a8c00" font-weight="600">出口：env loop +</text>
+  <text x="320" y="218" text-anchor="middle" font-size="9" fill="#5a8c00" font-weight="600">action 不爆 norm</text>
+
+  <!-- M2 -->
+  <rect x="440" y="60" width="160" height="190" rx="8" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="520" y="80" text-anchor="middle" font-size="11" font-weight="700">Demo + Finetune v1</text>
+  <text x="520" y="98" text-anchor="middle" font-size="9.5">给 5 gap task 补</text>
+  <text x="520" y="112" text-anchor="middle" font-size="9.5">htarget_low/high</text>
+  <text x="520" y="124" text-anchor="middle" font-size="9.5">scripted 收 30-50</text>
+  <text x="520" y="138" text-anchor="middle" font-size="9.5">episode (cabinet first)</text>
+  <text x="520" y="155" text-anchor="middle" font-size="9.5" fill="#555">→ LeRobot 格式</text>
+  <text x="520" y="167" text-anchor="middle" font-size="9.5" fill="#555">→ NEW_EMBODIMENT</text>
+  <text x="520" y="179" text-anchor="middle" font-size="9.5" fill="#555">finetune (~6h on 4090)</text>
+  <text x="520" y="205" text-anchor="middle" font-size="9" fill="#8a6500" font-weight="600">出口：cabinet</text>
+  <text x="520" y="218" text-anchor="middle" font-size="9" fill="#8a6500" font-weight="600">closed-loop nonzero</text>
+
+  <!-- M3 -->
+  <rect x="640" y="60" width="160" height="190" rx="8" fill="#fde0dc" stroke="#d9534f" stroke-width="2"/>
+  <text x="720" y="80" text-anchor="middle" font-size="11" font-weight="700">Self-improve loop</text>
+  <text x="720" y="98" text-anchor="middle" font-size="9.5">用 v1 rollout 收</text>
+  <text x="720" y="112" text-anchor="middle" font-size="9.5">100+ episode (筛</text>
+  <text x="720" y="124" text-anchor="middle" font-size="9.5">success ones)</text>
+  <text x="720" y="138" text-anchor="middle" font-size="9.5">mix sister</text>
+  <text x="720" y="150" text-anchor="middle" font-size="9.5">PickOrange data</text>
+  <text x="720" y="167" text-anchor="middle" font-size="9.5" fill="#555">finetune v2</text>
+  <text x="720" y="179" text-anchor="middle" font-size="9.5" fill="#555">+ window / kitchen</text>
+  <text x="720" y="205" text-anchor="middle" font-size="9" fill="#99332f" font-weight="600">出口：3 task ≥30%</text>
+  <text x="720" y="218" text-anchor="middle" font-size="9" fill="#99332f" font-weight="600">success rate</text>
+
+  <!-- M4 -->
+  <rect x="830" y="60" width="100" height="190" rx="8" fill="#d4e4f7" stroke="#1a4a7d" stroke-width="2"/>
+  <text x="880" y="80" text-anchor="middle" font-size="11" font-weight="700">Publish</text>
+  <text x="880" y="98" text-anchor="middle" font-size="9.5">HF release</text>
+  <text x="880" y="112" text-anchor="middle" font-size="9.5">wsagi/GR00T</text>
+  <text x="880" y="124" text-anchor="middle" font-size="9.5">-HBench-H1</text>
+  <text x="880" y="138" text-anchor="middle" font-size="9.5">+ notebook</text>
+  <text x="880" y="155" text-anchor="middle" font-size="9.5">+ MP4 demos</text>
+  <text x="880" y="172" text-anchor="middle" font-size="9.5" fill="#555">issue #22/#66</text>
+  <text x="880" y="184" text-anchor="middle" font-size="9.5" fill="#555">填补</text>
+  <text x="880" y="205" text-anchor="middle" font-size="9" fill="#1a4a7d" font-weight="600">出口：与</text>
+  <text x="880" y="218" text-anchor="middle" font-size="9" fill="#1a4a7d" font-weight="600">DR.Q 并列发布</text>
+</svg>
+</div>
+
+<h2>7. 与原 zero-shot review 的对照</h2>
+
+<table>
+<tr><th>来自 zero-shot review 的建议</th><th>本迁移路线的处置</th></tr>
+<tr><td>"Day 1-2 跑 LIBERO/DROID demo 闭环"</td><td><span class="badge badge-green">✅ 跳过</span> — SO-101 SOTA 已证明等同能力</td></tr>
+<tr><td>"Day 3-4 Isaac Lab GR-1 closed-loop"</td><td><span class="badge badge-green">✅ 跳过</span> — sister repo 已有同等强度任务</td></tr>
+<tr><td>"用 REAL_G1 embodiment tag zero-shot"</td><td><span class="badge badge-red">❌ 改为 NEW_EMBODIMENT finetune</span>（用户已熟）</td></tr>
+<tr><td>"EEF + IK → H1 arms 14D，hand 用 grasp preset"</td><td><span class="badge badge-yellow">部分采纳</span> — IK 路线放到 M5+ 作为优化方向；初版直接用 NEW_EMBODIMENT 学 H1 native action（行不通再退到 IK）</td></tr>
+<tr><td>"21 帧历史视频"</td><td><span class="badge badge-yellow">不必</span> — SO-101 用 <code>delta_indices: [0]</code> 单帧已能拿 SOTA</td></tr>
+<tr><td>"15 Hz 控制频率（DROID example）"</td><td><span class="badge badge-yellow">忽略</span> — sister 实战是 ~20-30 Hz client step（HB 100 Hz + action_repeat 5-7）</td></tr>
+<tr><td>"删除 highbar 任务（不是 manipulation）"</td><td><span class="badge badge-green">✅ 保留</span> — highbar 转交 DR.Q 或独立 RL line</td></tr>
+<tr><td>"Task 优先级：cabinet → window → ..."</td><td><span class="badge badge-green">✅ 采纳</span> — cabinet 第一，理由同（容错 + 训练分布最近）</td></tr>
+<tr><td>"PolicyServer + Client 架构"</td><td><span class="badge badge-green">✅ 完全采纳</span> — sister 已有</td></tr>
+<tr><td>"use_percentiles normalization"</td><td><span class="badge badge-green">✅ 完全采纳</span> — sister conf.yaml 已开</td></tr>
+</table>
+
+<h2>8. 立即可做的第一步 / Concrete next step</h2>
+
+<div class="callout ok">
+<strong>M0 启动清单（今天就能干）/ M0 bootstrap checklist</strong>
+<ol>
+  <li>在 <code>humanoid-training/</code> 加 git submodule <code>dependencies/Isaac-GR00T</code>（或 symlink 到 sister）</li>
+  <li>复制 sister <code>conf.yaml</code> → <code>configs/gr00t_hb.yaml</code>，改 <code>dataset_paths</code>、注释掉 modality_configs（M1 重写）</li>
+  <li>建 <code>gr00t_n17</code> venv（直接复用 sister 的环境定义；transformers 4.57.3）</li>
+  <li>跑一次 sister PickOrange ckpt 的 PolicyServer，HB 用 random action 跑 env loop — 证明环境无冲突</li>
+  <li>把本文 + 原 zero-shot review 钉在 PR 描述里，让后续协作者读懂"为什么不 zero-shot"</li>
+</ol>
+</div>
+
+<h2>9. 风险与失败模式 / Risk register</h2>
+
+<table>
+<tr><th>风险</th><th>概率</th><th>影响</th><th>缓解</th></tr>
+<tr><td>Scripted reach 收的 demo 多样性不够 → finetune 过拟合脚本轨迹</td><td>高</td><td>中</td><td>M3 self-improve loop + 随机化物体初态 + state_dropout_prob=0.2（已开）</td></tr>
+<tr><td>HB 单视角 + MuJoCo 渲染 OOD 严重，即使 finetune 也不收敛</td><td>中</td><td>高</td><td>退路：手工加 wrist 伪相机（改 HB env mjcf）；或转 Isaac Lab GR-1 任务</td></tr>
+<tr><td>DEX3-1 21D 手指 finetune 不足（数据稀疏）</td><td>中</td><td>中</td><td>初版用 power grasp preset（hand action 离散到 open/close）；后期数据多了再放开</td></tr>
+<tr><td>action 61D 直接学不收敛（vs SO-101 6D）</td><td>中</td><td>高</td><td>退路：legs 锁 standing + 只学 arms+hands 35D；或转回 IK adapter 路线（zero-shot review §1 方案）</td></tr>
+<tr><td>HumanoidBench env reward 与 GR00T 学到的 "看起来对" 不一致</td><td>低</td><td>中</td><td>用 mean_return + 人眼录像双指标，不只看 success_rate</td></tr>
+<tr><td>多 task 训练干扰 / 灾难性遗忘</td><td>中</td><td>中</td><td>SO-101 实验显示 N1.7 mix sister PickOrange 反而提升（68.3% &gt; 66.7%）— 可以多 task mix 训</td></tr>
+</table>
+
+<h2>10. 与 DR.Q 自训通关线的关系</h2>
+
+<p>本项目并行两条主线：</p>
+
+<table>
+<tr><th>主线</th><th>负责任务</th><th>状态</th><th>HF 发布</th></tr>
+<tr><td>DR.Q (RL from scratch)</td><td>locomotion (walk / run / stand / pole / crawl / ...) + highbar</td><td>✅ H1-walk 90% / G1-walk 70% 已发</td><td><code>wsagi/HumanoidBench-DR.Q</code></td></tr>
+<tr><td>GR00T (NEW_EMBODIMENT finetune)</td><td>manipulation gap (cabinet / window / kitchen / spoon / cube / insert)</td><td>🟡 本路线规划中</td><td>未来 <code>wsagi/GR00T-HBench-H1</code></td></tr>
+</table>
+
+<p>两条线在 <code>HumanoidBench.ipynb</code> 中共存，按任务类型自动选 policy backend（DR.Q 出 locomotion，GR00T 出 manipulation）。</p>
+
+<hr>
+
+<h2>11. 参考资料 / References</h2>
+
+<ul>
+  <li><strong>本项目</strong>
+    <ul class="tight">
+      <li><code>docs/groot_zeroshot_review.html</code> — 上一版 zero-shot 计划三方评审（已被本文替代部分结论）</li>
+      <li><code>docs/manipulation_policy_brainstorm.html</code> — manipulation gap 12 条候选路径</li>
+      <li><code>docs/g1_training_strategies.html</code> — G1 训练策略（locomotion，可参考 patch 思路）</li>
+      <li><code>.claude/memory/project_groot_zeroshot_plan.md</code> — 原计划（已知需修订）</li>
+    </ul>
+  </li>
+  <li><strong>Sister repo（已验证工件）</strong>
+    <ul class="tight">
+      <li><code>/home/david/work/isaaclab-experience/README.md</code> — VLA 横评榜单（GR00T-N1.7 自训第一）</li>
+      <li><code>/home/david/work/isaaclab-experience/LeIsaac/outputs/gr00t-n17-leisaac-pick-orange/experiment_cfg/conf.yaml</code> — 可直接套用的 finetune 配置</li>
+      <li><code>/home/david/work/isaaclab-experience/dependencies/Isaac-GR00T/</code> — N1.7 SDK</li>
+      <li><code>/home/david/work/isaaclab-experience/doc/gr00t_multi_release_env_split.html</code> — venv 隔离方案</li>
+      <li><code>/home/david/work/isaaclab-experience/scripts/benchmark/run_all_strict.sh</code> — 20-round eval 模板</li>
+    </ul>
+  </li>
+  <li><strong>NVIDIA / 上游</strong>
+    <ul class="tight">
+      <li><a href="https://github.com/NVIDIA/Isaac-GR00T">NVIDIA/Isaac-GR00T</a></li>
+      <li><a href="https://huggingface.co/nvidia/GR00T-N1.7-3B">nvidia/GR00T-N1.7-3B model card</a></li>
+      <li><a href="https://huggingface.co/wsagi/GR00T-N1.7-PickOrange">wsagi/GR00T-N1.7-PickOrange</a>（用户自训 SOTA）</li>
+    </ul>
+  </li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Built on sister repo's validated SO-101 GR00T-N1.7 SOTA finetune
+</p>
+
+</body>
+</html>
