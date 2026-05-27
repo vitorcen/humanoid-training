@@ -133,3 +133,4 @@ hf_release/
 *.pth
 *.safetensors
 .viewer_logs/
+*_LOG.TXT

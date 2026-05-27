@@ -20,7 +20,7 @@ _Train humanoid policies that **measurably solve tasks** — reproduce baselines
 
 _Released checkpoints_
 
-🔗 **<https://huggingface.co/wsagi/HumanoidBench-DR.Q>** — H1/G1 自训通关权重，**超过官方 baseline**：
+🔗 **<https://huggingface.co/wsagi/HumanoidBench-DrQ>** — H1/G1 自训通关权重，**超过官方 baseline**：
 
 | Task | 自训 / Self-trained | 公开 baseline | 提升 |
 | --- | --- | --- | --- |
@@ -56,6 +56,7 @@ humanoid-training/
 ├── HumanoidBench.ipynb              # 多任务 × 多策略一键预览 / multi-task × multi-policy preview
 ├── HumanoidBench-Showcase.ipynb     # baseline (dmux/DR.Q) 9 task 通关展示 / baseline showcase
 ├── HumanoidBench-SelfTrained.ipynb  # 自训 ckpt HF 下载 + 内嵌视频预览 / self-trained ckpt HF pull + inline MP4
+├── Datasets.ipynb                  # G1 公开数据集一键 LeRobot sim 预览 / G1 dataset one-click sim replay
 ├── scripts/
 │   ├── native_viewer.py         # MuJoCo 原生预览（任务通用）/ native viewer
 │   ├── drq_viewer.py            # DR.Q checkpoint 加载与回放 / DR.Q ckpt loader
@@ -182,7 +183,7 @@ _Related work_
 
 - [carlosferrazza/humanoid-bench](https://github.com/carlosferrazza/humanoid-bench) — upstream benchmark suite
 - [dmux/DR.Q](https://huggingface.co/dmux/DR.Q) — DR.Q pretrained checkpoints (baseline)
-- 🤗 [wsagi/HumanoidBench-DR.Q](https://huggingface.co/wsagi/HumanoidBench-DR.Q) — **our self-trained ckpts**: H1-walk 90% / G1-walk 70%
+- 🤗 [wsagi/HumanoidBench-DrQ](https://huggingface.co/wsagi/HumanoidBench-DrQ) — **our self-trained ckpts**: H1-walk 90% / G1-walk 70%
 - `../mujoco-experience` · `../isaaclab-experience` — sister repos in this family
 
 ---

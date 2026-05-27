@@ -124,7 +124,7 @@ def main():
                    help="fail if ckpt missing instead of auto-fetching from HF Hub")
     p.add_argument("--ckpt_dir", default=None,
                    help="explicit path to DRQ+HBench-<task>+<seed>/ — bypass cache lookup. "
-                        "Use this to load ckpts from non-dmux repos (e.g. wsagi/HumanoidBench-DR.Q).")
+                        "Use this to load ckpts from non-dmux repos (e.g. wsagi/HumanoidBench-DrQ).")
     args = p.parse_args()
 
     if args.ckpt_dir:
