@@ -1,0 +1,13 @@
+diff --git a/replay_buffer.py b/replay_buffer.py
+index 5e199a9..d5fa90d 100644
+--- a/replay_buffer.py
++++ b/replay_buffer.py
+@@ -165,7 +165,7 @@ class ReplayBuffer(IterableDataset):
+
+
+ def _worker_init_fn(worker_id):
+-    seed = np.random.get_state()[1][0] + worker_id
++    seed = int(np.random.get_state()[1][0] + worker_id)
+     np.random.seed(seed)
+     random.seed(seed)
+

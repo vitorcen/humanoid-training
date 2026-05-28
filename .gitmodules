@@ -4,3 +4,6 @@
 [submodule "dependencies/dr-q"]
 	path = dependencies/dr-q
 	url = https://github.com/dmksjfl/DR.Q
+[submodule "dependencies/drqv2"]
+	path = dependencies/drqv2
+	url = https://github.com/facebookresearch/drqv2

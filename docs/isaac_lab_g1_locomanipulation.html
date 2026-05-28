@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Isaac Lab G1 Locomanipulation — 任务详情 / Tasks Survey</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1060px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #76b900; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.9em; color: #76b900; border-left: 4px solid #76b900; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.93em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #eef7e0; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #76b900; background: #f3fae5; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-blue { background: #d4e4f7; color: #1a4a7d; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .svg-wrap { text-align: center; margin: 1em 0; background: #fff; border: 1px solid #d0d0d2; border-radius: 6px; padding: 0.8em; }
+</style>
+</head>
+<body>
+
+<h1>Isaac Lab G1 Locomanipulation 任务详情</h1>
+<em class="en">A focused survey of Isaac Lab's three Unitree G1 manipulation / loco-manipulation tasks</em>
+
+<div class="callout info">
+<strong>定位 / Scope</strong>：Isaac Lab 在 G1 上有 <strong>3 个 manipulation 类预定义 gym task</strong>（不含 locomotion 4 个 velocity tasks）。本文逐一拆解：scene 内容、action / obs schema、数据生成机制、与 LeRobot G1 sim 的差异，以及对本项目（humanoid-training）"看 G1 真实抓水壶"目标的适用性。
+<br><br>
+<em>Isaac Lab provides 3 predefined G1 manipulation tasks (separate from 4 locomotion velocity tasks). This doc breaks down each one's scene, action/obs schema, data-generation pipeline, and applicability to our "see G1 actually pick a kettle" goal.</em>
+</div>
+
+<h2>0. TL;DR</h2>
+
+<ul>
+  <li>3 个 task ID：<code>Isaac-PickPlace-Locomanipulation-G1-Abs-v0</code> · <code>Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0</code> · <code>Isaac-PickPlace-G1-InspireFTP-Abs-v0</code></li>
+  <li><strong>真实任务 scene</strong>：PackingTable（桌子）+ steering_wheel.usd（默认 object — 可换 kettle.usd 等）+ DomeLight + GroundPlane — 这是 LeRobot G1 sim **没有**的</li>
+  <li><strong>Data 来源</strong>：OpenXR + Manus Vive teleop 录少量 seed demos → <strong>Isaac Lab Mimic SDG</strong>（synthetic data generation）放大到 1000 trial</li>
+  <li><strong>Policy 范式</strong>：robomimic BC-RNN（low-dim 或 image），不是 RL</li>
+  <li><strong>对本项目的最大价值</strong>：<span class="badge badge-green">完整 task scene + 物理验证 + Mimic 数据放大</span>。能用同一套 G1 USD asset 验 GR00T policy 输出是否真能完成 task（不是 lerobot-replay 的"空气抓"）</li>
+  <li><strong>代价</strong>：Isaac Sim 启动慢（~30s），需 NVIDIA Omniverse + USD 资产；不在 conda env 里 light-weight</li>
+</ul>
+
+<h2>1. 三个 G1 manipulation Gym ID</h2>
+
+<table>
+<tr><th>Gym ID</th><th>Robot 配置</th><th>关键特点</th><th>主用途</th></tr>
+<tr>
+  <td><code>Isaac-PickPlace-Locomanipulation-G1-Abs-v0</code></td>
+  <td>G1 29DoF + TriHand（3 指）</td>
+  <td>全身 — 走过去 + 上半身 IK pick-place</td>
+  <td>完整 loco-manip pipeline；可走 long-horizon 任务</td>
+</tr>
+<tr>
+  <td><code>Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0</code></td>
+  <td>G1 29DoF + TriHand · <strong>base 锁站姿</strong></td>
+  <td>只上半身做 IK pick-place，腿不动</td>
+  <td>跟 humanoid-training D2 决策一致（legs lock + arms only）→ <strong>本项目最相关</strong></td>
+</tr>
+<tr>
+  <td><code>Isaac-PickPlace-G1-InspireFTP-Abs-v0</code></td>
+  <td>G1 + <strong>Inspire FTP（5 指灵巧手）</strong></td>
+  <td>更接近 H1 DEX3-1 五指风格</td>
+  <td>探索 dex-hand sim 接近 HumanoidBench H1Hand</td>
+</tr>
+</table>
+
+<div class="callout warn">
+<strong>注意</strong>：还有 <code>Isaac-Velocity-Flat-G1-v0</code> / <code>Isaac-Velocity-Rough-G1-v0</code>（+ Play 版本）这 4 个是 RL locomotion 任务（不是 manipulation），用 rsl_rl PPO，<strong>无 demo dataset</strong>。本文不展开。
+</div>
+
+<h2>2. Scene 组成（Locomanipulation-G1 为例）</h2>
+
+<p>来源：<code>IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/locomanipulation_g1_env_cfg.py:42-90</code></p>
+
+<table>
+<tr><th>Asset</th><th>Pose (m)</th><th>USD</th><th>说明</th></tr>
+<tr><td><strong>PackingTable</strong>（桌子）</td><td>(0, 0.55, -0.3)</td><td><code>{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd</code></td><td>kinematic_enabled=True，不动</td></tr>
+<tr><td><strong>object</strong>（操作物）</td><td>(-0.35, 0.45, 0.6996)</td><td><code>{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd</code></td><td>默认是方向盘，<strong>可替换为 kettle/teapot/box</strong></td></tr>
+<tr><td><strong>robot</strong></td><td>(0, 0, 0)</td><td><code>G1_29DOF_CFG</code></td><td>G1 29DoF + TriHand，URDF/USD</td></tr>
+<tr><td><strong>GroundPlane</strong></td><td>世界原点</td><td>Isaac 标准</td><td>—</td></tr>
+<tr><td><strong>DomeLight</strong></td><td>—</td><td>color=(0.75,0.75,0.75) intensity=3000</td><td>RTX 真实光照</td></tr>
+</table>
+
+<div class="callout ok">
+<strong>替换物体为 kettle</strong>：只需把 <code>object.spawn.usd_path</code> 换成自己的 kettle.usd（自己导出或从 Isaac Nucleus 找），可能要调 <code>scale</code> 和 <code>init_state.pos</code>。<strong>不需要重写 reward / FSM</strong>，因为 Isaac Lab pick-place mdp 是 object-agnostic（用 <code>object_ref</code> 字符串引用）。
+</div>
+
+<h2>3. Action / Observation Schema</h2>
+
+<h3>Action — 上半身 IK + 下半身 Agile RL controller</h3>
+
+<table>
+<tr><th>Action group</th><th>实现</th><th>维度</th><th>说明</th></tr>
+<tr><td><strong>upper_body_ik</strong></td><td><code>G1_UPPER_BODY_IK_ACTION_CFG</code>（Pink IK）</td><td>2× EEF 6D + 双 TriHand → IK 出 14 arm + N hand</td><td>用 pinocchio Pink IK solver，输入 EEF 目标，输出关节角</td></tr>
+<tr><td><strong>lower_body_joint_pos</strong></td><td><code>AgileBasedLowerBodyActionCfg</code></td><td>11 leg + waist joints</td><td>套预训练 RL <code>{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt</code> 接管下半身平衡 + 步态</td></tr>
+</table>
+
+<p><strong>关键洞察</strong>：Isaac Lab 不让 policy 直接控制 49+ 关节，而是**分层** — 上半身只学 EEF 目标（policy 学），下半身用 pretrained agile locomotion policy 自动平衡。这是 NVIDIA 在 N1 白皮书里的标准做法。</p>
+
+<h3>Observation</h3>
+
+<p>policy obs group + lower_body_policy obs group 双层 <code>ObsGroup</code>：</p>
+<ul class="tight">
+  <li><code>actions</code>（last_action）</li>
+  <li><code>robot_joint_pos</code></li>
+  <li>（推断）EEF poses · object poses · contact info</li>
+</ul>
+
+<h2>4. 数据生成：Mimic SDG（Synthetic Data Generation）</h2>
+
+<p>来源：<code>IsaacLab/source/isaaclab_mimic/isaaclab_mimic/envs/pinocchio_envs/locomanipulation_g1_mimic_env_cfg.py</code></p>
+
+<h3>流程图 / Pipeline</h3>
+
+<div class="svg-wrap">
+<svg width="900" height="220" viewBox="0 0 900 220">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect x="20" y="40" width="180" height="120" rx="8" fill="#eaf7ed" stroke="#28a745" stroke-width="2"/>
+  <text x="110" y="65" text-anchor="middle" font-size="12" font-weight="700">1) Seed demos</text>
+  <text x="110" y="85" text-anchor="middle" font-size="10">OpenXR + Manus Vive</text>
+  <text x="110" y="100" text-anchor="middle" font-size="10">VR teleop</text>
+  <text x="110" y="115" text-anchor="middle" font-size="10">~10-20 ep 真人操作</text>
+  <text x="110" y="135" text-anchor="middle" font-size="9.5" fill="#555">retargeter:</text>
+  <text x="110" y="148" text-anchor="middle" font-size="9.5" fill="#555">G1TriHandUpperBodyRetargeterCfg</text>
+
+  <line x1="200" y1="100" x2="240" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="245" y="40" width="200" height="120" rx="8" fill="#fff7e6" stroke="#f5a623" stroke-width="2"/>
+  <text x="345" y="65" text-anchor="middle" font-size="12" font-weight="700">2) Mimic SDG 放大</text>
+  <text x="345" y="85" text-anchor="middle" font-size="10">datagen_config.</text>
+  <text x="345" y="98" text-anchor="middle" font-size="10">generation_num_trials = 1000</text>
+  <text x="345" y="115" text-anchor="middle" font-size="10">subtask 切分</text>
+  <text x="345" y="128" text-anchor="middle" font-size="10">+ 轨迹插值合成</text>
+  <text x="345" y="145" text-anchor="middle" font-size="9.5" fill="#555">name = demo_src_g1_locomanip_demo_task_D0</text>
+
+  <line x1="445" y1="100" x2="485" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="490" y="40" width="180" height="120" rx="8" fill="#fff4e6" stroke="#ff6900" stroke-width="2"/>
+  <text x="580" y="65" text-anchor="middle" font-size="12" font-weight="700">3) HDF5 demos</text>
+  <text x="580" y="85" text-anchor="middle" font-size="10">~1000 success</text>
+  <text x="580" y="98" text-anchor="middle" font-size="10">+ ~25 failures</text>
+  <text x="580" y="115" text-anchor="middle" font-size="10">render 10 demo MP4</text>
+  <text x="580" y="135" text-anchor="middle" font-size="9.5" fill="#555">guarantee=True</text>
+  <text x="580" y="148" text-anchor="middle" font-size="9.5" fill="#555">keep_failed=False</text>
+
+  <line x1="670" y1="100" x2="710" y2="100" stroke="#333" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <rect x="715" y="40" width="170" height="120" rx="8" fill="#fde0dc" stroke="#d9534f" stroke-width="2"/>
+  <text x="800" y="65" text-anchor="middle" font-size="12" font-weight="700">4) BC train</text>
+  <text x="800" y="85" text-anchor="middle" font-size="10">robomimic</text>
+  <text x="800" y="100" text-anchor="middle" font-size="10">BC-RNN low-dim</text>
+  <text x="800" y="115" text-anchor="middle" font-size="10">/ BC-RNN image</text>
+  <text x="800" y="135" text-anchor="middle" font-size="9.5" fill="#555">cfg in</text>
+  <text x="800" y="148" text-anchor="middle" font-size="9.5" fill="#555">agents/robomimic/</text>
+</svg>
+</div>
+
+<h3>SubTask 配置（轨迹切分）</h3>
+
+<p>Mimic 把一个完整 pick-place trajectory 切成多个 subtask，按 binary indicator (<code>datagen_info["idle_right"]</code> 等) 标记切分点。这允许：</p>
+
+<ul class="tight">
+  <li>不同 episode 的 subtask 段可以**互换** — 比如 "走到桌前"段 + "右手抓"段 + "放下"段 任意组合 → 1000 unique trajectories from ~10 seed</li>
+  <li>每个 subtask 单独 reset 物体位置 → 增加 task variance</li>
+</ul>
+
+<pre>SubTaskConfig(
+    object_ref="object",                            # 关联场景里的 RigidObject
+    subtask_term_signal="idle_right",               # binary indicator 标识 subtask 结束
+    first_subtask_start_offset_range=(0, 0),
+    subtask_term_offset_range=(0, 0),
+    ...
+)</pre>
+
+<h2>5. 训练 / 推理</h2>
+
+<h3>训练（BC）</h3>
+
+<pre># Isaac Lab 自带 robomimic 训练入口
+python source/standalone/workflows/robomimic/train.py \
+    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+    --algo bc \
+    --config source/.../agents/robomimic/bc_rnn_low_dim.json</pre>
+
+<h3>推理 / Eval</h3>
+
+<pre>python source/standalone/workflows/robomimic/play.py \
+    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+    --checkpoint path/to/model.pth \
+    --num_rollouts 50</pre>
+
+<p>这是<strong>真闭环 task eval</strong> — 物体在场，可验 grasp success。</p>
+
+<h2>6. 与 LeRobot G1 sim 的差异（关键对比）</h2>
+
+<table>
+<tr><th>维度</th><th>Isaac Lab G1 task</th><th>LeRobot G1 sim</th></tr>
+<tr><td>Task scene 物体</td><td>✅ table + steering_wheel/kettle/etc.</td><td>❌ 仅 G1 + 空地板</td></tr>
+<tr><td>Replay 看到的</td><td>"机器人抓真物体"</td><td>"机器人在空气模拟"</td></tr>
+<tr><td>Grasp success 验证</td><td>✅ 真接触判定</td><td>❌ 没物体就没 success</td></tr>
+<tr><td>Sim backend</td><td>Isaac Sim（Omniverse / PhysX / USD）</td><td>MuJoCo</td></tr>
+<tr><td>启动时间</td><td>~30s</td><td>~3s</td></tr>
+<tr><td>资产</td><td>USD + Isaac Nucleus</td><td>MJCF + STL meshes</td></tr>
+<tr><td>渲染质量</td><td>RTX 真实光照</td><td>OpenGL 基础渲染</td></tr>
+<tr><td>本项目 conda env 支持</td><td>独立 isaaclab env</td><td>lerobot env</td></tr>
+<tr><td>Data 生成</td><td>VR teleop + Mimic SDG（自动）</td><td>Homunculus exo 手动录</td></tr>
+</table>
+
+<h2>7. 对 humanoid-training 项目的应用</h2>
+
+<div class="callout ok">
+<strong>最佳用法</strong>：在 humanoid-training 的 6 决策路线下，Isaac Lab G1 task 可作为：
+
+<ol>
+  <li><strong>验证 GR00T finetune policy 输出的有效性</strong>
+    <br>Day 5+ 用 GR00T (NEW_EMBODIMENT) finetune 后，把 policy 接到 <code>Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0</code> 跑 N=10 rollout，看 task success rate（替代 lerobot replay 的"空气抓"）</li>
+  <li><strong>参考 Mimic SDG 思路给 HumanoidBench 写数据 pipeline</strong>
+    <br>HB 没有 Mimic，但可借鉴：seed demos （手写 scripted FSM）→ subtask 切分 → 重组生成新轨迹（自己写一套类似 SDG 的）</li>
+  <li><strong>对比 reward / termination 设计</strong>
+    <br>Isaac Lab 的 pick-place reward 是 HB manipulation gap task 缺的（很多 HB task 没 dense reward），可参考</li>
+</ol>
+</div>
+
+<h3>不要用在</h3>
+
+<ul class="tight">
+  <li>❌ 当作主要 sim 平台（启动慢、资产重，与 D4 决策"用 MuJoCo passive viewer"冲突）</li>
+  <li>❌ 用 H1（Isaac Lab G1 task 不能直接迁移；H1 task 是另一套）</li>
+  <li>❌ 做 locomotion（locomotion 用 RL 路线 = DR.Q，不走 BC）</li>
+</ul>
+
+<h2>8. 已知限制 / Caveats</h2>
+
+<ol>
+  <li><strong>USD asset 依赖 Isaac Nucleus</strong>：<code>{ISAAC_NUCLEUS_DIR}</code> 需要 Isaac Sim 启动后通过 Omniverse 拉取，第一次启动慢</li>
+  <li><strong>BC-RNN 不是 SOTA</strong>：robomimic 是 2021 时代框架，现在 GR00T / pi0.5 / SmolVLA 远更强，但 Isaac Lab 默认配的是 BC-RNN</li>
+  <li><strong>Default object 是方向盘 steering_wheel</strong>：不是 kettle。要 kettle 自己换 USD</li>
+  <li><strong>没有公开预训练 ckpt</strong>：Isaac Lab 不像 lerobot 那样在 HF 发 G1 ckpt，需自训</li>
+  <li><strong>奖励信号</strong>：<code>subtask_term_signal</code> 需要在 mdp 里手动定义，object-specific</li>
+</ol>
+
+<h2>9. 文件清单 / File map</h2>
+
+<table>
+<tr><th>用途</th><th>文件</th></tr>
+<tr><td>Gym ID 注册</td><td><code>IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/__init__.py</code></td></tr>
+<tr><td>Env cfg（loco-manip）</td><td><code>locomanipulation_g1_env_cfg.py</code></td></tr>
+<tr><td>Env cfg（base-locked）</td><td><code>fixed_base_upper_body_ik_g1_env_cfg.py</code></td></tr>
+<tr><td>Env cfg（Inspire FTP 5指）</td><td><code>manipulation/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py</code></td></tr>
+<tr><td>Mimic SDG cfg</td><td><code>isaaclab_mimic/envs/pinocchio_envs/locomanipulation_g1_mimic_env_cfg.py</code></td></tr>
+<tr><td>BC config (low-dim)</td><td><code>agents/robomimic/bc_rnn_low_dim.json</code></td></tr>
+<tr><td>Locomotion teacher policy</td><td><code>{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt</code></td></tr>
+<tr><td>VR retargeters</td><td><code>isaaclab/devices/openxr/retargeters/humanoid/unitree/{trihand,inspire}/</code></td></tr>
+</table>
+
+<h2>10. 复现命令 / Quick reproduce</h2>
+
+<pre># 1. 启 Isaac Lab env
+cd ~/work/isaaclab-experience && conda activate isaaclab
+
+# 2. 查看 gym ID 是否注册成功
+python -c "import gymnasium as gym, isaaclab_tasks; \
+    print([e for e in gym.envs.registry if 'G1' in e])"
+
+# 3. 用随机 action 跑一个 episode（验环境通）
+./isaaclab.sh -p scripts/environments/random_agent.py \
+    --task Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0 --num_envs 1
+
+# 4. VR teleop 收 seed demos (需 OpenXR + Manus Vive 硬件)
+./isaaclab.sh -p scripts/imitation_learning/teleop_se3_agent.py \
+    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+    --device openxr --num_demos 10
+
+# 5. Mimic SDG 放大到 1000 demos
+./isaaclab.sh -p scripts/tools/mimic_generate.py \
+    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+    --source seed_demos.hdf5 --output gen_demos.hdf5
+
+# 6. BC 训练
+./isaaclab.sh -p scripts/workflows/robomimic/train.py \
+    --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+    --dataset gen_demos.hdf5 --algo bc</pre>
+
+<hr>
+
+<h2>11. 参考 / References</h2>
+
+<ul>
+  <li>Sister repo Isaac Lab: <code>/home/david/work/isaaclab-experience/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/</code></li>
+  <li>NVIDIA GR00T N1 白皮书（提到分层 controller 思路）: <a href="https://arxiv.org/abs/2503.14734">arXiv:2503.14734</a></li>
+  <li>Isaac Lab 主页: <a href="https://isaac-sim.github.io/IsaacLab/">isaac-sim.github.io/IsaacLab</a></li>
+  <li>本项目相关：
+    <ul class="tight">
+      <li><code>docs/groot_six_decisions.html</code> — 6 决策（D2 legs lock + D4 MuJoCo sim 选择理由）</li>
+      <li><code>docs/groot_so101_to_humanoid_migration.html</code> — sister SO-101 SOTA 经验</li>
+      <li><code>docs/humanoidbench_h1hand_tasks.html</code> — HumanoidBench h1hand-* 对照</li>
+    </ul>
+  </li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Sourced from IsaacLab repo (Apache-2.0 / BSD-3)
+</p>
+
+</body>
+</html>

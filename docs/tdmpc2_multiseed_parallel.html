@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>TD-MPC2 多 seed 并行训练 / Multi-seed Parallel Training</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Helvetica Neue", "PingFang SC", sans-serif;
+         max-width: 1024px; margin: 32px auto; padding: 0 24px; color: #222; line-height: 1.6; background: #fbfbfd;}
+  h1 { border-bottom: 3px solid #2a5db0; padding-bottom: 8px; }
+  h2 { color: #2a5db0; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 36px; }
+  h3 { color: #444; margin-top: 24px; }
+  .en  { color: #777; font-style: italic; }
+  .tldr { background: #fffae6; border-left: 4px solid #f5b400; padding: 16px 20px;
+          border-radius: 4px; margin: 16px 0; }
+  .key  { background: #e6f4ff; border-left: 4px solid #1a73e8; padding: 12px 18px;
+          border-radius: 4px; margin: 12px 0; }
+  .warn { background: #fde8e6; border-left: 4px solid #d93025; padding: 12px 18px;
+          border-radius: 4px; margin: 12px 0; }
+  .ok   { background: #e6f4ea; border-left: 4px solid #137333; padding: 12px 18px;
+          border-radius: 4px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; }
+  th { background: #f0f0f0; }
+  tr:nth-child(even) { background: #fafafa; }
+  code, pre { font-family: "JetBrains Mono", "Courier New", monospace; font-size: 0.92em; }
+  pre { background: #f6f8fa; padding: 12px 16px; border-radius: 6px; overflow-x: auto; }
+  .diagram { text-align: center; margin: 24px 0; }
+  .num { font-weight: 700; color: #137333; }
+  .neg { font-weight: 700; color: #d93025; }
+</style>
+</head>
+<body>
+
+<h1>TD-MPC2 多 seed 并行训练实战<br>
+<span class="en">TD-MPC2 Multi-seed Parallel Training — Field Notes</span></h1>
+
+<p class="en">Date: 2026-05-27 · Hardware: AutoDL RTX 4080 SUPER (32 GB) ·
+Source experiment: humanoid_g1-walk-v0, model_size=5</p>
+
+<div class="tldr">
+  <strong>TL;DR</strong>: TD-MPC2 上游没有原生并行实现（单进程单环境），但通过启动多个独立 seed 进程
+  在同一 GPU 上自然时间分片，<b>3 个 seed 并行使整卡吞吐 11 → 30 sps（2.7×）</b>，
+  每个 seed 个体步速仅下降 ~10%。代价：32 GB 显存吃满 6 GB，CPU 12 核被均分。
+  <br><br>
+  <span class="en">TD-MPC2 has no native parallelism (1 process, 1 env). But spawning multiple
+  independent <code>seed=N</code> processes on the same GPU naturally time-slices the GPU:
+  <b>3 seeds yield 2.7× wall-clock throughput</b>, with each seed only ~10% slower individually.</span>
+</div>
+
+<h2>1. 背景：为什么单 seed 不够 <span class="en">/ Why one seed is not enough</span></h2>
+
+<p>RL 训练对随机种子极敏感——同算法、同超参、同任务，不同 seed 收敛曲线可相差 30-50%。
+Paper 报"H1-walk TD-MPC2 mean 750"是 <b>3-5 seed 平均</b>，单 seed 几乎没统计意义。</p>
+
+<p class="en"><b>RL is notoriously seed-sensitive.</b> Same algorithm, same hyperparameters, same task,
+different seeds can give 30-50% return spread. Paper-reported numbers are <b>3-5 seed averages</b>;
+single seeds are not statistically meaningful.</p>
+
+<div class="warn">
+  实测我们自己 H1-walk DR.Q 多 seed 数据：
+  <br>seed 0 → mean ≈ 530 · seed 10 → mean ≈ 295 · seed 20 → mean ≈ 382
+  <br>Range: <span class="neg">±40%</span> with same config.
+</div>
+
+<h2>2. 当前 cloud 配置 <span class="en">/ Current cloud setup</span></h2>
+
+<table>
+  <tr><th>项 / Item</th><th>值 / Value</th></tr>
+  <tr><td>GPU</td><td>RTX 4080 SUPER 32 GB</td></tr>
+  <tr><td>CPU (cgroup limit)</td><td>12 cores @ 2.4 GHz Xeon 8260</td></tr>
+  <tr><td>RAM / Disk autodl-tmp</td><td>~60 GB / 50 GB</td></tr>
+  <tr><td>tmux sessions</td><td><code>g1train</code> (seed=0, resumed @ step_250k)<br>
+                              <code>g1train_s10</code> (seed=10, fresh)<br>
+                              <code>g1train_s20</code> (seed=20, fresh)</td></tr>
+</table>
+
+<h2>3. 原理：为什么 GPU 利用率从 15% 跳到 98%
+<span class="en">/ Why GPU util jumps 15% → 98%</span></h2>
+
+<div class="diagram">
+<svg width="800" height="280" viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .label { font-family: monospace; font-size: 12px; }
+    .title { font-family: -apple-system, sans-serif; font-weight: 700; font-size: 14px; }
+    .cpu { fill: #f5b400; }
+    .gpu { fill: #1a73e8; }
+    .idle { fill: #ddd; stroke: #999; }
+  </style>
+
+  <!-- Single seed -->
+  <text x="20" y="20" class="title">单 seed 时序 / Single-seed timeline (15% GPU util)</text>
+  <g transform="translate(20, 30)">
+    <text x="0" y="12" class="label">CPU:</text>
+    <rect x="40" y="0" width="80" height="16" class="cpu"/>
+    <rect x="120" y="0" width="40" height="16" class="idle"/>
+    <rect x="160" y="0" width="80" height="16" class="cpu"/>
+    <rect x="240" y="0" width="40" height="16" class="idle"/>
+    <rect x="280" y="0" width="80" height="16" class="cpu"/>
+    <rect x="360" y="0" width="40" height="16" class="idle"/>
+    <rect x="400" y="0" width="80" height="16" class="cpu"/>
+    <rect x="480" y="0" width="40" height="16" class="idle"/>
+    <rect x="520" y="0" width="80" height="16" class="cpu"/>
+    <rect x="600" y="0" width="40" height="16" class="idle"/>
+    <rect x="640" y="0" width="80" height="16" class="cpu"/>
+    <text x="0" y="48" class="label">GPU:</text>
+    <rect x="40" y="36" width="80" height="16" class="idle"/>
+    <rect x="120" y="36" width="40" height="16" class="gpu"/>
+    <rect x="160" y="36" width="80" height="16" class="idle"/>
+    <rect x="240" y="36" width="40" height="16" class="gpu"/>
+    <rect x="280" y="36" width="80" height="16" class="idle"/>
+    <rect x="360" y="36" width="40" height="16" class="gpu"/>
+    <rect x="400" y="36" width="80" height="16" class="idle"/>
+    <rect x="480" y="36" width="40" height="16" class="gpu"/>
+    <rect x="520" y="36" width="80" height="16" class="idle"/>
+    <rect x="600" y="36" width="40" height="16" class="gpu"/>
+    <rect x="640" y="36" width="80" height="16" class="idle"/>
+  </g>
+
+  <!-- 3 seeds -->
+  <text x="20" y="120" class="title">3 seed 时序 / 3-seed timeline (98% GPU util)</text>
+  <g transform="translate(20, 130)">
+    <text x="0" y="12" class="label">CPU0(s=0):</text>
+    <rect x="60" y="0" width="80" height="14" class="cpu"/>
+    <rect x="220" y="0" width="80" height="14" class="cpu"/>
+    <rect x="380" y="0" width="80" height="14" class="cpu"/>
+    <rect x="540" y="0" width="80" height="14" class="cpu"/>
+    <text x="0" y="32" class="label">CPU1(s=10):</text>
+    <rect x="140" y="20" width="80" height="14" class="cpu"/>
+    <rect x="300" y="20" width="80" height="14" class="cpu"/>
+    <rect x="460" y="20" width="80" height="14" class="cpu"/>
+    <rect x="620" y="20" width="80" height="14" class="cpu"/>
+    <text x="0" y="52" class="label">CPU2(s=20):</text>
+    <rect x="100" y="40" width="80" height="14" class="cpu"/>
+    <rect x="260" y="40" width="80" height="14" class="cpu"/>
+    <rect x="420" y="40" width="80" height="14" class="cpu"/>
+    <rect x="580" y="40" width="80" height="14" class="cpu"/>
+    <text x="0" y="80" class="label">GPU:</text>
+    <rect x="60" y="68" width="50" height="14" class="gpu"/>
+    <rect x="140" y="68" width="50" height="14" class="gpu"/>
+    <rect x="220" y="68" width="50" height="14" class="gpu"/>
+    <rect x="260" y="68" width="50" height="14" class="gpu"/>
+    <rect x="300" y="68" width="50" height="14" class="gpu"/>
+    <rect x="380" y="68" width="50" height="14" class="gpu"/>
+    <rect x="420" y="68" width="50" height="14" class="gpu"/>
+    <rect x="460" y="68" width="50" height="14" class="gpu"/>
+    <rect x="540" y="68" width="50" height="14" class="gpu"/>
+    <rect x="580" y="68" width="50" height="14" class="gpu"/>
+    <rect x="620" y="68" width="50" height="14" class="gpu"/>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(20, 250)">
+    <rect x="0" y="0" width="16" height="14" class="cpu"/>
+    <text x="22" y="12" class="label">CPU busy (MuJoCo physics)</text>
+    <rect x="200" y="0" width="16" height="14" class="gpu"/>
+    <text x="222" y="12" class="label">GPU busy (MPC planning + model update)</text>
+    <rect x="500" y="0" width="16" height="14" class="idle"/>
+    <text x="522" y="12" class="label">idle</text>
+  </g>
+</svg>
+</div>
+
+<div class="key">
+  <b>核心机制</b>：TD-MPC2 单进程的时序是 <code>CPU step → GPU plan → CPU step → GPU plan …</code>
+  交替进行，GPU 在 CPU step 阶段完全 idle（15% util 平均）。
+  <br>3 进程并行后，每个进程独立按此节奏跑，但<b>不同进程的 CPU step / GPU plan 阶段错峰</b>，
+  GPU 在任意时刻几乎总有进程在请求它（98% util）。
+  <br><br>
+  <span class="en"><b>Core mechanism</b>: A single TD-MPC2 process alternates <code>CPU step → GPU plan</code>;
+  GPU sits idle during CPU stepping (avg 15% util). With 3 concurrent processes, their
+  CPU/GPU phases interleave; the GPU almost always has at least one process requesting it (98% util).</span>
+</div>
+
+<h2>4. 实测数字 <span class="en">/ Measured numbers</span></h2>
+
+<table>
+  <tr><th>配置 / Setup</th><th>每 seed sps</th><th>总 sps</th><th>GPU mem</th><th>GPU util</th></tr>
+  <tr><td>单 seed (after seed_steps)</td><td><span class="num">11</span></td><td>11</td><td>2 GB</td><td>15%</td></tr>
+  <tr><td>3 seed 并行</td><td><span class="num">~10</span> each</td><td><b>30</b></td><td>6 GB</td><td><b>98%</b></td></tr>
+  <tr><td>↑ 净增益</td><td>−10%</td><td><span class="num">2.7×</span></td><td>3× 但仍宽裕</td><td>+555%</td></tr>
+</table>
+
+<p>1M 步完成估算：</p>
+<ul>
+  <li>单 seed @ 11 sps：<b>~25 h</b>，得 1 个数据点</li>
+  <li>3 seed 并行 @ 10 sps each：<b>~28 h</b>，得 <b>3 个</b>统计独立数据点</li>
+  <li>3 seed 串行（每个跑完再下一个）：<b>~75 h</b>，得 3 个数据点</li>
+</ul>
+
+<div class="ok">
+  <b>结论 / Verdict</b>：相比串行多 seed，<b>并行节省 2× wall time</b>。
+  相比单 seed，仅多 12% wall 即可拿 3× 的统计可信度。
+  <br><span class="en">2× wall-time savings vs serial multi-seed; only 12% extra wall for 3× statistical confidence vs single seed.</span>
+</div>
+
+<h2>5. 启动配方 <span class="en">/ Launch recipe</span></h2>
+
+<p>每个 seed 一个 tmux session（独立 logdir 由 TD-MPC2 cfg 自动分到 <code>logs/&lt;task&gt;/&lt;seed&gt;/&lt;exp_name&gt;</code>）：</p>
+
+<pre><code># SSH 进 AutoDL
+ssh -p 12770 root@connect.bjb1.seetacloud.com
+
+# 每个 seed 一个 tmux session
+for SEED in 0 10 20; do
+  tmux new-session -d -s "g1train_s${SEED}" -x 220 -y 50
+  tmux send-keys -t "g1train_s${SEED}" "
+    cd /root/autodl-tmp/humanoid-training/runs/g1_tdmpc2_pilot &amp;&amp; \
+    MUJOCO_GL=egl /root/miniconda3/bin/conda run -n humanoidbench --no-capture-output \
+      python -m tdmpc2.train \
+      task=humanoid_g1-walk-v0 model_size=5 steps=1000000 eval_freq=50000 \
+      seed=${SEED} exp_name=g1_tdmpc2_pilot \
+      data_dir=/tmp/_g1_tdmpc2_buf_s${SEED} \
+      checkpoint=null disable_wandb=true save_agent=true save_csv=true \
+      2&gt;&amp;1 | tee train_s${SEED}.log
+  " Enter
+done</code></pre>
+
+<p>关键点 / Key:</p>
+<ul>
+  <li><code>data_dir</code> <b>每个 seed 必须不同</b>，否则共享 replay buffer 文件破坏统计独立性
+  / each seed needs its own buffer dir</li>
+  <li><code>MUJOCO_GL=egl</code> 必须，否则容器无 display → mujoco gladLoadGL 报错</li>
+  <li><code>checkpoint=null</code> 让所有新 seed fresh-from-scratch；要 fine-tune 则填具体 <code>.pt</code></li>
+  <li>tmux session 与 SSH 完全解耦——断网不会停训练 / SSH disconnect-safe</li>
+</ul>
+
+<h2>6. 缺点 / 注意事项 <span class="en">/ Caveats</span></h2>
+
+<ul>
+  <li><b>CPU 竞争阈值</b>：12 核分给 3 个 seed 各 ~4 核，TD-MPC2 单进程 MuJoCo 物理仿真不是
+  thread-heavy（基本单核），所以 4 核够；但跑 6+ seeds 会开始 thrash。
+  <br><span class="en">12 cores / 3 seeds = 4 each. MuJoCo physics is mostly single-threaded; beyond 6 seeds you'll thrash.</span></li>
+
+  <li><b>GPU 内存非问题</b>：每个 TD-MPC2 model_size=5 进程仅 ~2 GB GPU 显存，32 GB 卡可塞 ~12 seed。
+  <br><span class="en">~2 GB per seed; 32 GB card can hold ~12.</span></li>
+
+  <li><b>seed=0 heterogeneity</b>：我们的 seed=0 是 resume from <code>step_250k.pt</code>，而 seed=10/20 fresh，
+  跨 seed 平均时这是 apple-vs-orange。要严格 paper-comparable 需 3 个 seed 都 fresh init。
+  <br><span class="en">Our seed=0 is fine-tuned from a 250k-step checkpoint; seed=10/20 are fresh. Strictly
+  comparable multi-seed averaging requires all-fresh init.</span></li>
+
+  <li><b>磁盘 IO</b>：3 个 replay buffer 写盘竞争 NVMe；AutoDL <code>/tmp</code> 通常本地 NVMe 没问题，
+  但是 <code>autodl-tmp</code> 网络盘要小心写 buffer。
+  <br><span class="en">Replay buffer disk contention — use local <code>/tmp</code>, not network-mounted dirs.</span></li>
+
+  <li><b>异常恢复</b>：单 seed 进程崩了，另两个继续跑；可独立重启。
+  <br><span class="en">Each seed is fully independent; a crash on one doesn't affect the others.</span></li>
+</ul>
+
+<h2>7. Linus 反思 <span class="en">/ Linus retro</span></h2>
+
+<div class="key">
+  <ol>
+    <li><b>真问题？</b> ✅ TD-MPC2 paper-level 报告需要 multi-seed，否则 single-seed 没说服力。</li>
+    <li><b>更简单方案？</b> 单 seed 跑久点+多次 reruns 用 wallclock 换 evidence——但 3× wall 太贵。
+    并行才是数据结构对路的方案。</li>
+    <li><b>会破坏什么？</b> 不会。每个 seed 是 hermetic 进程，无共享状态，无竞争条件。</li>
+  </ol>
+
+  <p><b>设计品味</b>：原 TD-MPC2 trainer 没考虑多 seed 编排——但我们不需要改它，
+  操作系统 (tmux + 进程隔离) 已经提供了完美的并行原语。<b>消除特殊情况 = 不写新的多 worker 代码</b>。
+  <br><span class="en">Original TD-MPC2 trainer doesn't think about multi-seed orchestration — but we don't need
+  to patch it. The OS (tmux + process isolation) already gives us the parallel primitive. Eliminating special
+  cases = not writing new multi-worker code.</span></p>
+</div>
+
+<h2>8. 后续 <span class="en">/ Next</span></h2>
+
+<ul>
+  <li>等 3 个 seed 跑完 (~28 h) → scp ckpts 回本机 → N=10 deterministic eval per seed</li>
+  <li>报告均值 ± 标准差，发回 HF <code>wsagi/HumanoidBench-DrQ</code> 仓库扩到 G1-walk multi-seed</li>
+  <li>下一个 task（如 h1-run-v0, g1-stand-v0）按相同 3-seed 模板复用</li>
+  <li>同时本机 4090 跑 DreamerV3 medium（不同算法，互补数据点）</li>
+</ul>
+
+<hr>
+<p style="color: #888; font-size: 0.85em">
+  Related memories:
+  <code>feedback_parallel_jax_torch_gpu.md</code>(同卡 JAX+torch 并行经验) ·
+  <code>feedback_train_with_watcher.md</code>(slice eval 模板) ·
+  <code>feedback_tmux_codex.md</code>(tmux session 管理)
+</p>
+
+</body>
+</html>

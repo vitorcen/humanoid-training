@@ -1,0 +1,26 @@
+diff --git a/dreamerv3/embodied/core/logger.py b/dreamerv3/embodied/core/logger.py
+index 36a228a..72e1faf 100644
+--- a/dreamerv3/embodied/core/logger.py
++++ b/dreamerv3/embodied/core/logger.py
+@@ -7,7 +7,20 @@ import time
+ import pathlib
+ 
+ import numpy as np
+-import matplotlib.pyplot as plt
++
++# Lazy matplotlib import — Python 3.11 + mpl 3.7-3.10 hit
++# "ValueError: duplicate parameter name" intermittently during dreamerv3's
++# multiprocessing.spawn worker startup. Only `plt.Figure` is used (in
++# isinstance checks); fall back to a never-matched sentinel if mpl fails.
++try:
++    import matplotlib
++    matplotlib.use("Agg")
++    import matplotlib.pyplot as plt
++except (ValueError, ImportError):
++    class _NoFigure: pass
++    class _PltStub:
++        Figure = _NoFigure
++    plt = _PltStub()
+ 
+ from . import basics
+ from . import path

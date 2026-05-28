@@ -1,0 +1,142 @@
+diff --git a/humanoid_bench/__init__.py b/humanoid_bench/__init__.py
+index 065045e..62c4c9b 100644
+--- a/humanoid_bench/__init__.py
++++ b/humanoid_bench/__init__.py
+@@ -13,6 +13,12 @@ for robot in ROBOTS:
+         kwargs["robot"] = robot
+         kwargs["control"] = control
+         kwargs["task"] = task
++        # patched 2026-05-26: G1 fingers contribute pure exploration noise on
++        # locomotion tasks (14 DoF unrelated to walking). Auto-enable blocked_hands
++        # for G1 so DR.Q's isotropic σ=0.2 noise doesn't poison encoder dynamics.
++        if robot == "g1":
++            kwargs.setdefault("blocked_hands", "True")
++            kwargs.setdefault("small_obs", "False")
+         register(
+             id=f"{robot}-{task}-v0",
+             entry_point="humanoid_bench.env:HumanoidEnv",
+diff --git a/humanoid_bench/envs/package.py b/humanoid_bench/envs/package.py
+index 8223805..ecba154 100644
+--- a/humanoid_bench/envs/package.py
++++ b/humanoid_bench/envs/package.py
+@@ -3,7 +3,10 @@ import gymnasium as gym
+ from gymnasium.spaces import Box
+ from dm_control.utils import rewards
+ 
+-from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++# Lazy import (torch optional for JAX-only envs)
++def _import_torch_models():
++    from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++    return TorchModel, TorchPolicy
+ 
+ import mujoco
+ 
+diff --git a/humanoid_bench/envs/push.py b/humanoid_bench/envs/push.py
+index 25837bf..28bd97b 100644
+--- a/humanoid_bench/envs/push.py
++++ b/humanoid_bench/envs/push.py
+@@ -6,7 +6,10 @@ import gymnasium as gym
+ from gymnasium.spaces import Box
+ 
+ from humanoid_bench.tasks import Task
+-from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++# Lazy import (torch optional for JAX-only envs)
++def _import_torch_models():
++    from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++    return TorchModel, TorchPolicy
+ 
+ 
+ class Push(Task):
+diff --git a/humanoid_bench/envs/reach.py b/humanoid_bench/envs/reach.py
+index f0b0473..553cfda 100644
+--- a/humanoid_bench/envs/reach.py
++++ b/humanoid_bench/envs/reach.py
+@@ -6,7 +6,10 @@ import gymnasium as gym
+ from gymnasium.spaces import Box
+ 
+ from humanoid_bench.tasks import Task
+-from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++# Lazy import (torch optional for JAX-only envs)
++def _import_torch_models():
++    from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++    return TorchModel, TorchPolicy
+ 
+ 
+ class Reach(Task):
+diff --git a/humanoid_bench/wrappers.py b/humanoid_bench/wrappers.py
+index ac68034..493491e 100644
+--- a/humanoid_bench/wrappers.py
++++ b/humanoid_bench/wrappers.py
+@@ -2,7 +2,11 @@ from gymnasium.spaces import Box, Dict
+ import numpy as np
+ import mujoco
+ 
+-from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++# Lazy import — torch is only required when reach skills are used (policy_path != "").
++# Allows running without torch installed (e.g. JAX-only DreamerV3 env).
++def _lazy_torch_imports():
++    from humanoid_bench.mjx.flax_to_torch import TorchModel, TorchPolicy
++    return TorchModel, TorchPolicy
+ from humanoid_bench.tasks import Task
+ # from humanoid_bench.env import HumanoidEnv
+ 
+@@ -102,7 +106,7 @@ class SingleReachWrapper(BaseWrapper):
+ 
+         self.max_delta = max_delta
+ 
+-        reaching_model = TorchModel(55, 19)
++        TorchModel, TorchPolicy = _lazy_torch_imports(); reaching_model = TorchModel(55, 19)
+         self.reaching_policy = TorchPolicy(reaching_model)
+         self.reaching_policy.load(policy_path, mean=mean_path, var=var_path)
+ 
+@@ -228,7 +232,7 @@ class DoubleReachBaseWrapper(BaseWrapper):
+         self.max_delta = max_delta
+         self.max_delta_coords = max_delta_coords
+ 
+-        reaching_model = TorchModel(61, 19)
++        TorchModel, TorchPolicy = _lazy_torch_imports(); reaching_model = TorchModel(61, 19)
+         self.reaching_policy = TorchPolicy(reaching_model)
+         self.reaching_policy.load(policy_path, mean=mean_path, var=var_path)
+ 
+@@ -382,7 +386,9 @@ class DoubleReachRelativeWrapper(DoubleReachBaseWrapper):
+ class BlockedHandsLocoWrapper(BaseWrapper):
+     def __init__(self, task, **kwargs):
+ 
+-        assert task.unwrapped.robot.__class__.__name__ == "H1Hand" or task.unwrapped.robot.__class__.__name__ == "H1" or task.unwrapped.robot.__class__.__name__ == "H1Touch", "BlockedHandsWrapper only works with H1 robot"
++        robot_cls = task.unwrapped.robot.__class__.__name__
++        assert robot_cls in ("H1Hand", "H1", "H1Touch", "G1"), \
++            f"BlockedHandsWrapper only works with H1/G1 family, got {robot_cls}"
+ 
+         super().__init__(task)
+ 
+@@ -392,18 +398,25 @@ class BlockedHandsLocoWrapper(BaseWrapper):
+             self.small_obs = False
+         print("Small obs: ", self.small_obs)
+ 
+-        assert (
+-            task._env.model.nu > 19
+-        ), "BlockedHandsWrapper only works when hands are present in the action space"
++        # G1 has 37 actuators (23 body + 14 fingers); H1Hand/Touch >19; H1 = 19
++        if robot_cls == "G1":
++            body_dim = 23  # leg(13) + arm(10)
++            assert task._env.model.nu == 37, f"G1 expected nu=37, got {task._env.model.nu}"
++        else:
++            body_dim = 19
++            assert task._env.model.nu > 19, "BlockedHandsWrapper for H1Hand/Touch needs hands"
+ 
+-        task._env.action_space = Box(low=-1, high=1, shape=(19,), dtype=np.float32)
++        task._env.action_space = Box(low=-1, high=1, shape=(body_dim,), dtype=np.float32)
+ 
+         self.body_idxs, self.body_vel_idxs = get_body_idxs(task._env.model)
+ 
+         print("Body Idxs: ", self.body_idxs)
+         print("Body Vel Idxs: ", self.body_vel_idxs)
+ 
+-        self.act_idxs = list(range(15)) + list(range(16, 20))
++        if robot_cls == "G1":
++            self.act_idxs = list(range(23))  # leg + torso + arm; fingers fixed at 0
++        else:
++            self.act_idxs = list(range(15)) + list(range(16, 20))
+ 
+         if self.small_obs:
+             task._env.observation_space = Box(

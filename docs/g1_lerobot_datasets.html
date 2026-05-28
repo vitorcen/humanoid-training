@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Unitree G1 公开数据集巡查 / Public G1 Dataset Survey</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1060px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #ff6900; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.8em; color: #ff6900; border-left: 4px solid #ff6900; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.92em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #fff1e6; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #ff6900; background: #fff4e6; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-blue { background: #d4e4f7; color: #1a4a7d; }
+  .badge-orange { background: #ffd9b3; color: #8a3a00; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .star { color: #f5a623; }
+</style>
+</head>
+<body>
+
+<h1>Unitree G1 公开数据集巡查</h1>
+<em class="en">A survey of publicly available Unitree G1 datasets on HuggingFace (Nov 2025 – May 2026)</em>
+
+<div class="callout info">
+<strong>定位 / Scope</strong>：本次扫了 HF datasets API 与 LeRobot doc，整理出在 LeRobot / GR00T / RoboCasa / ManiSkill 几个生态里**公开可下载**的 Unitree G1 数据集（≥ 10 downloads，或者 LeRobot 官方 doc 推荐）。配套 <code>Datasets.ipynb</code> 提供一键 sim replay 预览。
+<br><br>
+<em>HF datasets surveyed via API (Nov 2025–May 2026). Companion <code>Datasets.ipynb</code> gives one-click sim-replay preview.</em>
+</div>
+
+<h2>0. TL;DR</h2>
+
+<ul>
+  <li><strong>3 类来源</strong>：① <strong>RoboCasa 仿真合成</strong>（最大规模，1k+ episodes）② <strong>Homunculus 外骨骼 / VR teleop</strong>（LeRobot 主流来源）③ <strong>ManiSkill 仿真</strong>（少量但 well-documented）</li>
+  <li><strong>4 种 G1 变体</strong>：<code>G1_29DoF</code>（全 29 自由度）· <code>G1_23DoF</code>（无手）· <code>G1_Dex3</code>（3 指 trihand）· <code>G1_Inspire-FTP</code>（5 指 Inspire 灵巧手）</li>
+  <li><strong>实时预览有 2 条路径</strong>：
+    <ul class="tight">
+      <li><span class="badge badge-orange">A 路径 · sim replay</span> <code>lerobot-replay --robot.type=unitree_g1 --robot.is_simulation=true --dataset.repo_id=X</code> — 在 G1 MuJoCo sim 里回放 dataset action</li>
+      <li><span class="badge badge-blue">B 路径 · Rerun viewer</span> <code>lerobot-dataset-viz --repo-id X</code> — 不启 sim，浏览 video + state trajectory</li>
+    </ul>
+  </li>
+  <li><strong>5 个代表性数据集</strong>（按"分类多样性 + 下载量 + schema 兼容性"挑出，已配置在 <code>Datasets.ipynb</code> 一键按钮）</li>
+</ul>
+
+<h2>1. 代表性数据集（Datasets.ipynb 一键预览）</h2>
+
+<table>
+<tr><th>分类</th><th>Dataset</th><th>规模</th><th>G1 变体</th><th>License</th><th>预览路径</th></tr>
+<tr>
+  <td><span class="badge badge-orange">仿真合成 · RoboCasa</span></td>
+  <td><a href="https://huggingface.co/datasets/jnsungp/unitree-g1-robocasa-pick-apple-bowl-contact-1k"><code>jnsungp/unitree-g1-robocasa-pick-apple-bowl-contact-1k</code></a> <span class="star">⭐</span></td>
+  <td>100K-1M frames<br>≈1000 ep</td>
+  <td>G1 29DoF + Dex</td>
+  <td>cc-by-4.0</td>
+  <td>B 优先（A 看 schema）</td>
+</tr>
+<tr>
+  <td><span class="badge badge-green">Teleop · Homunculus exo</span></td>
+  <td><a href="https://huggingface.co/datasets/nepyope/unitree_box_move_blue_full"><code>nepyope/unitree_box_move_blue_full</code></a> <span class="star">⭐</span></td>
+  <td>100K-1M frames</td>
+  <td>G1 29DoF</td>
+  <td>apache-2.0</td>
+  <td><strong>A</strong>（LeRobot doc 官方 example）</td>
+</tr>
+<tr>
+  <td><span class="badge badge-blue">DEX3-1 五指 · teleop</span></td>
+  <td><a href="https://huggingface.co/datasets/Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle-v3"><code>Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle-v3</code></a></td>
+  <td>10K-100K frames</td>
+  <td>G1 + DEX3-1</td>
+  <td>apache-2.0</td>
+  <td><strong>A</strong>（H1Hand 设计参考）</td>
+</tr>
+<tr>
+  <td><span class="badge badge-orange">ManiSkill 仿真</span></td>
+  <td><a href="https://huggingface.co/datasets/johnMinelli/ManiSkill_UnitreeG1TransportBox-v1_recovery"><code>johnMinelli/ManiSkill_UnitreeG1TransportBox-v1_recovery</code></a></td>
+  <td>~600 ep</td>
+  <td>G1 29DoF</td>
+  <td>—</td>
+  <td>B（ManiSkill schema 与 LeRobot 可能不兼容）</td>
+</tr>
+<tr>
+  <td><span class="badge badge-gray">小型 sanity check</span></td>
+  <td><a href="https://huggingface.co/datasets/afabisch/unitree_g1_leave_room_old"><code>afabisch/unitree_g1_leave_room_old</code></a></td>
+  <td>&lt;1K frames</td>
+  <td>G1 29DoF</td>
+  <td>—</td>
+  <td>B（最快加载，看格式用）</td>
+</tr>
+</table>
+
+<div class="callout warn">
+<strong>挑选标准 / Why these five</strong>：每条覆盖不同<strong>来源（仿真 vs teleop）× 手部（无手 / Dex3 / Inspire）× 规模</strong>组合，让用户一次看清生态全貌而不是全堆同质数据。完整候选表见 §3。
+</div>
+
+<h2>2. 实时预览技术路径</h2>
+
+<h3>路径 A：sim replay（推荐）</h3>
+
+<p>把 dataset 里的 action 序列**直接驱动 G1 MuJoCo sim**，看机器人在 sim 里"回放"录好的动作。这是 LeRobot 官方 <code>lerobot-replay</code> 命令做的事。</p>
+
+<pre>lerobot-replay \
+    --robot.type=unitree_g1 \
+    --robot.is_simulation=true \
+    --robot.cameras='{"global_view":{"type":"zmq","server_address":"localhost",
+                       "port":5555,"camera_name":"head_camera",
+                       "width":640,"height":480,"fps":30,"warmup_s":5}}' \
+    --dataset.repo_id=nepyope/unitree_box_move_blue_full \
+    --dataset.episode=0</pre>
+
+<p>会自动启 G1 MuJoCo viewer（资产从 <code>lerobot/unitree-g1-mujoco</code> 拉），然后逐帧把 dataset action 喂给 sim。前提：dataset 的 action schema 与 LeRobot <code>unitree_g1</code> robot 期望的接口对齐。</p>
+
+<div class="callout warn">
+<strong>Schema 兼容性矩阵 / Schema compat</strong>：
+<ul class="tight">
+  <li>✅ <code>nepyope/*</code>（Homunculus teleop）— LeRobot doc 官方 example，最稳</li>
+  <li>✅ <code>Breno-de-Angelo/*</code>（dex3 teleop）— 已标 <code>LeRobot</code> tag</li>
+  <li>⚠️ <code>jnsungp/*</code>（RoboCasa）— 是 RoboCasa Isaac Sim 风格，action 可能需要 transform 才能给 LeRobot G1 sim</li>
+  <li>❌ <code>johnMinelli/ManiSkill_*</code>（ManiSkill）— ManiSkill action schema 与 LeRobot 不兼容，建议走 B 路径</li>
+</ul>
+</div>
+
+<h3>路径 B：Rerun viewer（兜底）</h3>
+
+<p>不启动 sim，用 <a href="https://rerun.io">Rerun</a> 浏览数据集 video + state trajectory + action 曲线。任何 LeRobot 格式 dataset 都能开，schema 不兼容也能看。</p>
+
+<pre>lerobot-dataset-viz \
+    --repo-id jnsungp/unitree-g1-robocasa-pick-apple-bowl-contact-1k \
+    --episode-index 0</pre>
+
+<p>会弹 Rerun GUI（X11），左侧 timeline，右侧 3-pane（视频 / state plot / action plot）。在 sim replay 失败时用这个排查 — 至少能看清楚数据长什么样。</p>
+
+<h2>3. 完整候选清单（按下载量排序）</h2>
+
+<h3>RoboCasa 仿真合成（jnsungp 系列）</h3>
+
+<table>
+<tr><th>Dataset</th><th>规模</th><th>dl</th><th>备注</th></tr>
+<tr><td><code>jnsungp/unitree-g1-robocasa-pick-apple-bowl-contact-1k</code></td><td>100K-1M</td><td><strong>1079</strong></td><td>带接触力 / contact-aware variant</td></tr>
+<tr><td><code>jnsungp/unitree-g1-robocasa-pick-apple-bowl-1k</code></td><td>100K-1M</td><td>343</td><td>基础版（无 contact）</td></tr>
+<tr><td><code>jnsungp/unitree-g1-robocasa-pick-apple-bowl-depth-1k</code></td><td>~100K</td><td>51</td><td>含 depth modality</td></tr>
+</table>
+
+<h3>Homunculus 外骨骼 teleop（LeRobot 主流）</h3>
+
+<table>
+<tr><th>Dataset</th><th>规模</th><th>dl</th><th>备注</th></tr>
+<tr><td><code>nepyope/unitree_box_move_blue_full</code></td><td>100K-1M</td><td>—</td><td>LeRobot doc 官方 example，license apache-2.0</td></tr>
+<tr><td><code>rahul-ai-01/unitree_g1</code></td><td>—</td><td>511</td><td>未声明 task / license</td></tr>
+<tr><td><code>afabisch/unitree_g1_leave_room_old</code></td><td>&lt;1K</td><td>443</td><td>最小 sanity check</td></tr>
+</table>
+
+<h3>DEX3-1 五指（Breno-de-Angelo 系列）</h3>
+
+<table>
+<tr><th>Dataset</th><th>规模</th><th>dl</th><th>备注</th></tr>
+<tr><td><code>Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle-v3</code></td><td>10K-100K</td><td>374</td><td>apache-2.0，LeRobot 格式，<strong>最接近 HB H1Hand 五指</strong></td></tr>
+<tr><td><code>Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle-white-table</code></td><td>~10K</td><td>27</td><td>白桌变体</td></tr>
+<tr><td><code>Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle</code></td><td>~10K</td><td>21</td><td>v1 旧版</td></tr>
+<tr><td><code>Breno-de-Angelo/unitree-g1-manipulation</code></td><td>—</td><td>56</td><td>mixed manipulation 合集</td></tr>
+<tr><td><code>memory-vla/unitree_g1_dex3_press_knob</code></td><td>—</td><td>102</td><td>DEX3-1 press knob</td></tr>
+</table>
+
+<h3>ManiSkill 仿真</h3>
+
+<table>
+<tr><th>Dataset</th><th>规模</th><th>dl</th><th>备注</th></tr>
+<tr><td><code>johnMinelli/ManiSkill_UnitreeG1TransportBox-v1_recovery</code></td><td>—</td><td>786</td><td>ManiSkill v3 schema</td></tr>
+</table>
+
+<h3>其他社区数据（&lt;100 dl）</h3>
+
+<ul class="tight">
+  <li><code>shivubind/unitree_g1_pick_place2</code> · <code>Unitree_G1_PickPlace_Biscuit2</code> · <code>unitree_g1_open_oven</code> · <code>unitree_g1_put_biscuit</code> · <code>Unitree_G1_Oven</code>（同一作者多个任务）</li>
+  <li><code>Makolon0321/unitree_g1_block_stack</code></li>
+  <li><code>MarvinZhw/Unitree_G1</code></li>
+  <li><code>qlOoOlp/unitree_sim_G129_Dex1_cylinder</code></li>
+  <li><code>momonnoo/unitree_g1_pick_cube</code></li>
+  <li><code>MLeggiero/unitree_g1_lift_red_ball_lowlevel/highlevel</code></li>
+  <li><code>Bocchan5656/Unitree_G1_Dex0_PickBasket</code></li>
+  <li><code>zeeshaan-ai/unitree-g1-dataset-apple-pick-place</code> (182 dl)</li>
+  <li><code>reply-area42/G1-unitree-format-tasks-collection-16112025</code> — collection 形式</li>
+  <li><code>AllenHHF/unitree-g1-usds</code> — USD asset，不是 trajectory</li>
+</ul>
+
+<h2>4. Schema / 接口要点 / Schema gotchas</h2>
+
+<table>
+<tr><th>项</th><th>LeRobot G1 标准 schema</th><th>RoboCasa 风格</th><th>ManiSkill 风格</th></tr>
+<tr><td>action_dim</td><td>29 或 23（看 robot config）</td><td>多视角 + 物理仿真分量</td><td>delta action + gripper</td></tr>
+<tr><td>视频 key</td><td><code>observation.images.global_view</code></td><td>多 camera（head/wrist/external）</td><td>RGB + depth</td></tr>
+<tr><td>state key</td><td><code>observation.state</code> (joint pos)</td><td>同 + 物体 pose</td><td>同 + 接触</td></tr>
+<tr><td>FPS</td><td>30</td><td>30 或 60</td><td>20</td></tr>
+<tr><td>dataset 库版本</td><td>LeRobot v0.4.0+</td><td>LeRobot v0.4.0+（jnsungp 显式标注）</td><td>ManiSkill 自家 v3 schema</td></tr>
+</table>
+
+<h2>5. 一键预览 — <code>Datasets.ipynb</code> 设计</h2>
+
+<p>配套的 <code>Datasets.ipynb</code> notebook 提供：</p>
+
+<ul>
+  <li><strong>§1 环境检查</strong>：自动检测 <code>lerobot-replay</code> / <code>lerobot-dataset-viz</code> CLI 是否可用；缺失时给出 sister repo 安装提示</li>
+  <li><strong>§2 5 按钮一键预览</strong>：上表 5 个代表性 dataset，每个一个按钮；点击后：
+    <ol>
+      <li>HF snapshot_download（自动缓存到 <code>~/.cache/huggingface</code>）</li>
+      <li>优先尝试 A 路径（sim replay）；如果 schema 不兼容，自动 fallback 到 B 路径（Rerun viewer）</li>
+      <li>subprocess.Popen 启动外部进程，输出写到 <code>.viewer_logs/</code></li>
+    </ol>
+  </li>
+  <li><strong>§3 完整对照表</strong>：所有候选 dataset 的紧凑表格 + 直接拉取 cell</li>
+  <li><strong>§4 数据集 inline 浏览</strong>（不启 sim，最快）：用 <code>LeRobotDataset</code> API 直接 inline 显示第 N episode 的视频 + state plot — 当 GUI 不能用时的极简兜底</li>
+</ul>
+
+<h2>6. 对本项目的借鉴 / What we take from this</h2>
+
+<table>
+<tr><th>用途</th><th>用哪个</th></tr>
+<tr><td>验证 LeRobot G1 sim 流程能跑通</td><td><code>nepyope/unitree_box_move_blue_full</code>（doc 官方 example）</td></tr>
+<tr><td>WindowFSM 输出的 28D action 写哪种 LeRobot dataset schema</td><td>仿照 <code>Breno-de-Angelo/unitree-g1-dex3-1-pick-kettle-v3</code>（DEX3-1 五指 + LeRobot tag）</td></tr>
+<tr><td>大规模仿真合成数据示例</td><td><code>jnsungp/unitree-g1-robocasa-pick-apple-bowl-contact-1k</code>（1k ep）</td></tr>
+<tr><td>查 dataset features schema 长啥样</td><td>用 <code>LeRobotDataset(repo_id).features</code> 直接打印（notebook §4）</td></tr>
+</table>
+
+<hr>
+
+<h2>7. 参考资料 / References</h2>
+
+<ul>
+  <li>HuggingFace datasets API: <code>https://huggingface.co/api/datasets?search=unitree_g1</code></li>
+  <li>LeRobot G1 doc: <code>lerobot/docs/source/unitree_g1.mdx</code> (sister repo)</li>
+  <li>LeRobot scripts:
+    <ul class="tight">
+      <li><code>src/lerobot/scripts/lerobot_replay.py</code> — sim/真机 replay</li>
+      <li><code>src/lerobot/scripts/lerobot_dataset_viz.py</code> — Rerun GUI viewer</li>
+    </ul>
+  </li>
+  <li>G1 sim env hub: <a href="https://huggingface.co/lerobot/unitree-g1-mujoco">lerobot/unitree-g1-mujoco</a> — MuJoCo XML + meshes</li>
+  <li>本项目相关：
+    <ul class="tight">
+      <li><code>Datasets.ipynb</code> — 配套一键预览 notebook</li>
+      <li><code>docs/groot_six_decisions.html</code> — 上一份 6 决策对齐文档</li>
+    </ul>
+  </li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Survey via HF API + LeRobot sister repo docs
+</p>
+
+</body>
+</html>

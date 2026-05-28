@@ -21,4 +21,7 @@ apply_one() {
 
 apply_one dependencies/dr-q patches/dr-q-save-agent.patch
 apply_one dependencies/humanoid-bench patches/g1-pos-control.patch
-apply_one dependencies/humanoid-bench patches/humanoid-bench-g1-blocked-hands.patch
+apply_one dependencies/humanoid-bench patches/humanoid-bench-g1-and-lazy.patch
+apply_one dependencies/humanoid-bench patches/tdmpc2-save-agent.patch
+apply_one dependencies/humanoid-bench patches/dreamerv3-logger-lazy-mpl.patch
+apply_one dependencies/drqv2 patches/drqv2-numpy-seed-cast.patch

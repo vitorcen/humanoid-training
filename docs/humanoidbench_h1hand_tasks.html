@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HumanoidBench h1hand-* 任务详情 / Tasks Survey</title>
+<style>
+  body { font-family: -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; max-width: 1080px; margin: 2em auto; padding: 0 1.2em; line-height: 1.65; color: #1d1d1f; background: #fbfbfd; }
+  h1 { border-bottom: 3px solid #0066cc; padding-bottom: 0.3em; }
+  h2 { margin-top: 1.9em; color: #0066cc; border-left: 4px solid #0066cc; padding-left: 0.6em; }
+  h3 { color: #333; margin-top: 1.4em; }
+  h4 { color: #444; margin-top: 1.1em; }
+  .en { font-style: italic; color: #555; display: block; margin-top: -0.3em; }
+  code, pre { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace; }
+  pre { background: #f4f4f6; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; border: 1px solid #e0e0e2; font-size: 0.86em; }
+  code { background: #f0f0f2; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8em 0; font-size: 0.93em; }
+  th, td { border: 1px solid #d0d0d2; padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+  th { background: #e8f0fc; }
+  tr:nth-child(even) { background: #f8f9fb; }
+  .callout { border-left: 4px solid; padding: 0.8em 1em; margin: 1em 0; border-radius: 0 6px 6px 0; }
+  .warn { border-color: #f5a623; background: #fff7e6; }
+  .ok   { border-color: #28a745; background: #eaf7ed; }
+  .info { border-color: #0066cc; background: #eef4fc; }
+  .danger { border-color: #d9534f; background: #fdecea; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; vertical-align: middle; }
+  .badge-green { background: #d4f5dd; color: #1a7333; }
+  .badge-yellow { background: #fff1c6; color: #8a6500; }
+  .badge-red { background: #fde0dc; color: #99332f; }
+  .badge-gray { background: #e8e8ec; color: #444; }
+  .badge-blue { background: #d4e4f7; color: #1a4a7d; }
+  ul.tight li { margin-bottom: 0.25em; }
+  hr { border: none; border-top: 1px solid #d0d0d2; margin: 2em 0; }
+  .star { color: #f5a623; }
+</style>
+</head>
+<body>
+
+<h1>HumanoidBench <code>h1hand-*</code> 任务详情</h1>
+<em class="en">Comprehensive survey of all 31 HumanoidBench tasks under the h1hand (76-DoF, dexterous-hand) variant</em>
+
+<div class="callout info">
+<strong>定位 / Scope</strong>：HumanoidBench (HB) 给 Unitree H1 + Shadow-Hand-like dexterous hands 提供 <strong>31 个 gym task</strong>。本文按"locomotion / manipulation / whole-body"分类，列出 success_bar、reach skill 支持、本项目 DR.Q 自训通关 ckpt 覆盖、剩余 manipulation gap。
+<br><br>
+<em>HB has 31 gym tasks for H1Hand (76-DoF body + dex hands). This doc categorizes by task family, lists success bars, reach-skill availability, our DR.Q passing ckpts, and the remaining manipulation gap.</em>
+</div>
+
+<h2>0. TL;DR</h2>
+
+<ul>
+  <li><strong>31 个 task</strong>，每个 task 自动适配 6 个 robot 变体（<code>h1</code> · <code>h1hand</code> · <code>h1simplehand</code> · <code>h1strong</code> · <code>h1touch</code> · <code>g1</code>） = 共注册 <strong>~186 gym IDs</strong></li>
+  <li><strong>h1hand DoF</strong>：76（19 body + 2×26 + 5 shadow-hand-style；action 实际 61D normalized）</li>
+  <li><strong>分类</strong>：
+    <ul class="tight">
+      <li><span class="badge badge-green">locomotion 9</span> walk · run · stand · crawl · pole · hurdle · stair · slide · sit (×2) · balance (×2)</li>
+      <li><span class="badge badge-blue">manipulation 10</span> reach · push · package · truck · bookshelf (×2) · door · maze（有 reach skill 16 个） + cube · cabinet · window · spoon · insert (×2) · basketball · kitchen · highbar（无 reach skill 9 个）</li>
+      <li><span class="badge badge-yellow">whole-body 3</span> highbar · powerlift · room</li>
+    </ul>
+  </li>
+  <li><strong>本项目状态</strong>：
+    <ul class="tight">
+      <li>✅ DR.Q 自训通关 9/9 H1 locomotion（已发 <code>wsagi/HumanoidBench-DrQ</code>）</li>
+      <li>🟡 H1 manipulation gap 7 个待攻：cube · kitchen · cabinet · window · spoon · insert · highbar — 走 GR00T 路线（见 <code>docs/groot_six_decisions.html</code>）</li>
+    </ul>
+  </li>
+  <li><strong>vs Isaac Lab G1</strong>：HB 是 MuJoCo 原生 + 完整 task scene + dense reward + RL training-ready；缺点是用 H1（≠ G1），renderer 简单</li>
+</ul>
+
+<h2>1. 完整 task 表（按 family 分组）</h2>
+
+<h3>🚶 Locomotion family</h3>
+
+<table>
+<tr><th>Task ID 后缀</th><th>success_bar</th><th>reach skill 可复用</th><th>本项目 DR.Q 状态</th><th>说明</th></tr>
+<tr><td><code>stand</code></td><td>—</td><td>—</td><td>✅ 90%+</td><td>静止站姿</td></tr>
+<tr><td><code>walk</code></td><td>700</td><td>—</td><td>✅ <strong>90% mean 801</strong></td><td>已发 HF</td></tr>
+<tr><td><code>run</code></td><td>700</td><td>—</td><td>✅</td><td>同 walk 高速</td></tr>
+<tr><td><code>crawl</code></td><td>—</td><td>—</td><td>✅</td><td>四肢爬行</td></tr>
+<tr><td><code>pole</code></td><td>700</td><td>✅</td><td>✅</td><td>手扶 pole 站立</td></tr>
+<tr><td><code>hurdle</code></td><td>—</td><td>—</td><td>—</td><td>跨栏</td></tr>
+<tr><td><code>stair</code></td><td>—</td><td>—</td><td>—</td><td>上下楼梯</td></tr>
+<tr><td><code>slide</code></td><td>—</td><td>—</td><td>—</td><td>滑梯</td></tr>
+<tr><td><code>sit_simple</code></td><td>—</td><td>—</td><td>—</td><td>坐椅子</td></tr>
+<tr><td><code>sit_hard</code></td><td>—</td><td>—</td><td>—</td><td>坐椅子（变长 horizon）</td></tr>
+<tr><td><code>balance_simple</code></td><td>800</td><td>—</td><td>—</td><td>单脚 / 不稳平台</td></tr>
+<tr><td><code>balance_hard</code></td><td>800</td><td>—</td><td>—</td><td>同上加难</td></tr>
+</table>
+
+<h3>🖐 Manipulation family — <span class="badge badge-green">有 reach skill 支持</span></h3>
+
+<p>这些 task 已定义 <code>htarget_low</code> / <code>htarget_high</code>（手部目标 bbox），可复用 HB 自带的低层 reach skill（<code>dependencies/humanoid-bench/data/reach_two_hands/</code> 有预训练 ckpt）。</p>
+
+<table>
+<tr><th>Task ID 后缀</th><th>success_bar</th><th>说明</th></tr>
+<tr><td><code>reach</code></td><td>12000</td><td>双手到达目标位姿（最基础）</td></tr>
+<tr><td><code>push</code></td><td>700</td><td>双手推箱子到目标位置</td></tr>
+<tr><td><code>package</code></td><td>1500</td><td>包裹搬运</td></tr>
+<tr><td><code>truck</code></td><td>3000</td><td>把箱子装到 truck</td></tr>
+<tr><td><code>bookshelf_simple</code></td><td>2000</td><td>取书放架</td></tr>
+<tr><td><code>bookshelf_hard</code></td><td>2000</td><td>书架增加难度</td></tr>
+<tr><td><code>maze</code></td><td>1200</td><td>双手 + 走路绕迷宫</td></tr>
+<tr><td><code>basic_locomotion_envs</code></td><td>700</td><td>walk/run/stand 的合并入口</td></tr>
+</table>
+
+<h3>🚫 Manipulation gap — <span class="badge badge-red">无 reach skill 支持</span></h3>
+
+<p>这些 task 没有 <code>htarget</code> bbox 定义，<strong>不能用现成 reach skill 辅助</strong> — DR.Q 自训也都失败。这是 GR00T NEW_EMBODIMENT finetune 的攻关目标。</p>
+
+<table>
+<tr><th>Task ID 后缀</th><th>success_bar</th><th>难度</th><th>说明</th><th>本项目策略</th></tr>
+<tr><td><code>cube</code></td><td>370</td><td>🔴 高</td><td>双手 in-hand cube reorientation</td><td>M5+（双手 dex 最难）</td></tr>
+<tr><td><code>kitchen</code></td><td>4</td><td>🔴 高</td><td>长 horizon 微波炉/水龙头等多步任务</td><td>M5+（长时序）</td></tr>
+<tr><td><code>cabinet</code></td><td>2500</td><td>🟡 中</td><td>开柜门取物</td><td>M3 候选</td></tr>
+<tr><td><code>window</code></td><td>650</td><td>🟢 低</td><td>单手平面推 window slide</td><td>✅ <strong>M1-M2 第一目标</strong></td></tr>
+<tr><td><code>spoon</code></td><td>650</td><td>🟡 中</td><td>勺子工具抓 + 倾倒</td><td>M4 候选</td></tr>
+<tr><td><code>door</code></td><td>600</td><td>🟢 低</td><td>开门（含 handle 旋转）</td><td>M3 候选</td></tr>
+<tr><td><code>insert_normal</code></td><td>350</td><td>🔴 高</td><td>插入式精细接触</td><td>M5+</td></tr>
+<tr><td><code>insert_small</code></td><td>350</td><td>🔴 高</td><td>更小插孔</td><td>M5+</td></tr>
+<tr><td><code>basketball</code></td><td>1200</td><td>🟡 中</td><td>投篮（持续 contact）</td><td>留待</td></tr>
+<tr><td><code>highbar_simple</code></td><td>750</td><td>🔴 高</td><td>高杠悬挂 → 摆动</td><td>RL 路线（不属 manip）</td></tr>
+<tr><td><code>highbar_hard</code></td><td>750</td><td>🔴 高</td><td>同上更难</td><td>RL 路线</td></tr>
+<tr><td><code>powerlift</code></td><td>800</td><td>🔴 高</td><td>蹲举杠铃</td><td>RL 路线</td></tr>
+<tr><td><code>room</code></td><td>400</td><td>🟡 中</td><td>室内 navigation + manip</td><td>留待</td></tr>
+</table>
+
+<h2>2. h1hand 机器人详情</h2>
+
+<table>
+<tr><th>项</th><th>值</th><th>来源</th></tr>
+<tr><td>DoF（总自由度）</td><td><strong>76</strong></td><td><code>robots.py:H1Hand.dof = 76</code></td></tr>
+<tr><td>Body DoF</td><td>19</td><td>2 leg + 1 torso + 4 arm × 2 + 5 head/extra (大致)</td></tr>
+<tr><td>Hand</td><td>2× Shadow-Hand-like ~26 DoF（含被动指节）</td><td>MJCF 模型</td></tr>
+<tr><td>Action dim</td><td><strong>61</strong>（normalized <code>[-1, 1]</code>）</td><td>实测 <code>env.action_space.shape</code></td></tr>
+<tr><td>Control mode</td><td><strong>pos</strong>（position control，与 h1/h1simplehand 一致）</td><td><code>__init__.py:8</code></td></tr>
+<tr><td>Observation dim</td><td>~151（dense state，无 image）</td><td>实测</td></tr>
+<tr><td>FPS</td><td>50 (default <code>render_fps</code>)</td><td><code>env.py:105</code></td></tr>
+<tr><td>Sim engine</td><td>MuJoCo (via dm_control)</td><td><code>env.py:14</code></td></tr>
+</table>
+
+<h3>6 个 robot 变体差异</h3>
+
+<table>
+<tr><th>Robot</th><th>DoF</th><th>说明</th></tr>
+<tr><td><code>h1</code></td><td>~19</td><td>Body only，无手</td></tr>
+<tr><td><code>h1simplehand</code></td><td>52</td><td>简化 gripper（2-3 指）</td></tr>
+<tr><td><code>h1hand</code></td><td>76</td><td>Shadow-style 5 指灵巧手（<strong>本项目 manipulation 目标</strong>）</td></tr>
+<tr><td><code>h1strong</code></td><td>76</td><td>同 h1hand 但加强 actuator</td></tr>
+<tr><td><code>h1touch</code></td><td>76</td><td>同 h1hand 但加 tactile sensor</td></tr>
+<tr><td><code>g1</code></td><td>44</td><td>Unitree G1 23-29 DoF + 平行爪（本项目 G1-walk 用，需 BlockedHandsLocoWrapper）</td></tr>
+</table>
+
+<h2>3. Gym ID 命名规则</h2>
+
+<pre>{robot}-{task}-v0
+
+# 例子
+h1hand-walk-v0           # H1Hand 走路
+h1hand-cube-v0           # H1Hand 双手 cube reorientation
+h1hand-cabinet-v0        # H1Hand 开柜门
+g1-walk-v0               # G1 走路（auto blocked_hands=True for DR.Q）
+
+# Robot 选项：h1 | h1hand | h1simplehand | h1strong | h1touch | g1
+# Task 选项 (31)：见 §1</pre>
+
+<p>注：<code>__init__.py</code> patched 2026-05-26 — G1 任务自动启用 <code>blocked_hands=True</code> 屏蔽 14 维手指，避免 DR.Q 的 σ=0.2 noise 污染 encoder dynamics（见 <code>docs/g1_training_strategies.html</code>）。</p>
+
+<h2>4. 环境接口 / Env API</h2>
+
+<pre>import gymnasium as gym
+import humanoid_bench  # registers all 186 IDs
+
+env = gym.make("h1hand-window-v0", render_mode="rgb_array")
+obs, info = env.reset(seed=0)
+# obs.shape ≈ (151,) for h1hand
+# env.action_space.shape = (61,)
+
+action = env.action_space.sample()
+obs, reward, terminated, truncated, info = env.step(action)
+# info["success"]    — bool, 是否达成 task goal
+# info["success_subtasks"] — only for cabinet / kitchen, list of subtask flags
+
+# render
+img = env.render()   # → (256, 256, 3) uint8</pre>
+
+<h3>关键 env kwargs</h3>
+
+<table>
+<tr><th>kwarg</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>render_mode</code></td><td><code>"rgb_array"</code></td><td>可选 <code>"human"</code>（MuJoCo viewer）/ <code>"depth_array"</code></td></tr>
+<tr><td><code>width</code> / <code>height</code></td><td>256</td><td>render 分辨率</td></tr>
+<tr><td><code>randomness</code></td><td>0.01</td><td>物体初态随机化</td></tr>
+<tr><td><code>policy_path</code></td><td>None</td><td>低层 reach skill ckpt 路径（仅 reach-skill task 用）</td></tr>
+<tr><td><code>blocked_hands</code></td><td>False（G1: True）</td><td>屏蔽手指自由度 → action_dim 减</td></tr>
+<tr><td><code>small_obs</code></td><td>False</td><td>用 reduced obs（subset of full state）</td></tr>
+</table>
+
+<h2>5. 训练 / Eval 入口</h2>
+
+<h3>RL（已支持）</h3>
+
+<pre># DreamerV3 / TD-MPC2 / PPO 自带
+cd dependencies/humanoid-bench/tdmpc2 && python tdmpc2/train.py \
+    task=h1hand-walk-v0 seed=0 steps=500000
+
+# DR.Q（外部 submodule）
+cd dependencies/dr-q/DRQ && python main.py \
+    --env HBench-h1hand-window-v0 --seed 0 \
+    --total_timesteps 500000 --save_freq 50000 \
+    --base_folder ../../runs/h1hand_window_pilot/ --save_experiment</pre>
+
+<h3>Imitation Learning</h3>
+
+<p>HB <strong>没有公开 demos</strong>（参考 <code>docs/g1_lerobot_datasets.html</code> §0 Codex 验证）。要 IL：</p>
+<ul class="tight">
+  <li>(a) scripted reach skill 收 demos（仅 reach-skill task）</li>
+  <li>(b) 自写 FSM + IK 控制器收 demos（无 reach-skill task）</li>
+  <li>(c) GR00T NEW_EMBODIMENT finetune（本项目 D2 路线）</li>
+</ul>
+
+<h3>Eval</h3>
+
+<pre># 本项目自带 multi-seed eval harness
+python scripts/eval.py --task h1hand-window-v0 --driver drq \
+    --eval 10 --seed_list 0,10,20 --action_repeat 2 \
+    --out results/h1hand-window.jsonl</pre>
+
+<h2>6. 与 Isaac Lab G1 task 的差异</h2>
+
+<table>
+<tr><th>维度</th><th>HumanoidBench <code>h1hand-*</code></th><th>Isaac Lab G1</th></tr>
+<tr><td>机器人</td><td><strong>H1 + Shadow-style 5 指</strong>（76 DoF）</td><td>G1 + TriHand/Inspire</td></tr>
+<tr><td>Sim backend</td><td>MuJoCo（轻量 ~3s 启动）</td><td>Isaac Sim（重 ~30s 启动）</td></tr>
+<tr><td>Task scene</td><td>✅ 完整（cabinet 有 cabinet，window 有 window）</td><td>✅ 完整（PackingTable + USD object）</td></tr>
+<tr><td>Task 数量</td><td><strong>31</strong></td><td>3（manipulation only）</td></tr>
+<tr><td>Reward</td><td>✅ Dense reward + <code>success_bar</code></td><td>✅ 但需 mdp 自定义</td></tr>
+<tr><td>Demo 数据</td><td>❌ 无公开 demos</td><td>✅ Mimic SDG 1000 trials</td></tr>
+<tr><td>预训练 ckpt（HF）</td><td>✅ <code>wsagi/HumanoidBench-DrQ</code>（locomotion 9 task） + <code>dmux/DR.Q</code></td><td>❌ 无公开 ckpt</td></tr>
+<tr><td>RL 训练</td><td>✅ DR.Q/TD-MPC2/Dreamer/PPO 全套</td><td>✅ rsl_rl PPO + robomimic BC</td></tr>
+<tr><td>渲染质量</td><td>OpenGL 基础</td><td>RTX 真实光照</td></tr>
+<tr><td>License</td><td>MIT</td><td>BSD-3 / Apache-2.0</td></tr>
+<tr><td>本项目主线</td><td><span class="badge badge-green">✅ 主 sim</span></td><td><span class="badge badge-gray">参考 / 验证</span></td></tr>
+</table>
+
+<h2>7. 本项目 9/9 H1 locomotion 实测成绩</h2>
+
+<table>
+<tr><th>Task</th><th>DR.Q seed 0 success_rate</th><th>dmux baseline</th><th>提升</th><th>HF release</th></tr>
+<tr><td><code>h1-walk-v0</code></td><td><strong>90%</strong> (mean 801)</td><td>~30% (mean ~530)</td><td>3× 成功率</td><td>✅ <code>wsagi/HumanoidBench-DrQ</code></td></tr>
+<tr><td><code>g1-walk-v0</code></td><td><strong>70%</strong> (mean 711)</td><td>0% (mean ~100, torque baseline)</td><td>7.1× return</td><td>✅ <code>wsagi/HumanoidBench-DrQ</code> (with PD + BlockedHands)</td></tr>
+</table>
+
+<p>详见 <code>HumanoidBench-SelfTrained.ipynb</code> 和 <code>docs/g1_training_strategies.html</code>。</p>
+
+<h2>8. Manipulation gap 攻关路线（本项目当前焦点）</h2>
+
+<div class="callout ok">
+<strong>策略</strong>（基于 <code>docs/groot_six_decisions.html</code> 的 6 决策对齐）：
+
+<ol>
+  <li><strong>D5：第一 task = <code>h1hand-window-v0</code></strong>（base 锁站姿 + 单手 EEF 最干净）</li>
+  <li><strong>D1：Demo 来源 = scripted reach skill (b) + FSM (a)</strong>
+    <br>给 cube/cabinet/window/spoon/insert 补 <code>htarget_low/high</code> bbox（patches/），用 reach skill 辅助 FSM 生成 30-50 ep demos</li>
+  <li><strong>D2：Action mask</strong>
+    <br>61D HB action 中只让 GR00T 学 28D arms+hands；剩 33D legs + waist 锁 standing preset</li>
+  <li><strong>D3：DEX3-1 5指（HB 用 Shadow-style 26-DoF/手）</strong>
+    <br>初版用 3-state preset（open/half/close），后期再放开</li>
+  <li><strong>D4：实时预览 = MuJoCo passive viewer + GR00T PolicyServer ZMQ</strong></li>
+  <li><strong>D6：Eval = N=10 ep × 3 seeds</strong>，<code>info["success"]</code> + 失败阶段分布</li>
+</ol>
+</div>
+
+<h2>9. 文件清单 / File map</h2>
+
+<table>
+<tr><th>用途</th><th>文件</th></tr>
+<tr><td>Gym ID 注册</td><td><code>dependencies/humanoid-bench/humanoid_bench/__init__.py</code></td></tr>
+<tr><td>主 env class</td><td><code>humanoid_bench/env.py</code> (HumanoidEnv, ROBOTS, TASKS)</td></tr>
+<tr><td>Robot classes</td><td><code>humanoid_bench/robots.py</code> (H1, H1Hand, ..., G1)</td></tr>
+<tr><td>Task classes（每个 task 一个文件）</td><td><code>humanoid_bench/envs/*.py</code>（20 个文件，覆盖 31 task）</td></tr>
+<tr><td>Reach skill 数据</td><td><code>data/reach_two_hands/</code>（预训练 ckpt）</td></tr>
+<tr><td>本项目 DR.Q 训练入口</td><td><code>dependencies/dr-q/DRQ/main.py</code></td></tr>
+<tr><td>本项目 eval harness</td><td><code>scripts/eval.py</code></td></tr>
+<tr><td>本项目 watcher</td><td><code>scripts/train_watcher.py</code></td></tr>
+</table>
+
+<h2>10. 复现命令 / Quick reproduce</h2>
+
+<pre># 1. clone with submodule
+git clone --recursive https://github.com/vitorcen/humanoid-training
+cd humanoid-training && bash patches/apply.sh
+
+# 2. conda env
+conda create -n humanoidbench python=3.11 -y && conda activate humanoidbench
+pip install -e dependencies/humanoid-bench
+
+# 3. 列出所有 h1hand task IDs
+python -c "import gymnasium as gym, humanoid_bench; \
+    print([e for e in gym.envs.registry if e.startswith('h1hand-')])"
+
+# 4. 随机 action smoke test
+python scripts/native_viewer.py --env h1hand-window-v0 --action random
+
+# 5. 跑预训练 DR.Q ckpt
+DISPLAY=:0 python scripts/drq_viewer.py --task h1-walk-v0 --seed 0
+
+# 6. 自训通关 H1-walk
+python scripts/eval.py --task h1-walk-v0 --driver drq \
+    --eval 10 --seed_list 0,10,20 --action_repeat 2 \
+    --out results/h1-walk-v0.jsonl</pre>
+
+<hr>
+
+<h2>11. 参考 / References</h2>
+
+<ul>
+  <li>HumanoidBench paper: <a href="https://arxiv.org/abs/2403.10506">arXiv:2403.10506</a> (Sferrazza et al. 2024, RSS)</li>
+  <li>HumanoidBench repo: <a href="https://github.com/carlosferrazza/humanoid-bench">carlosferrazza/humanoid-bench</a></li>
+  <li>HF baseline ckpts: <a href="https://huggingface.co/dmux/DR.Q">dmux/DR.Q</a>（locomotion 9 task × 10 seed）</li>
+  <li>本项目自训发布：<a href="https://huggingface.co/wsagi/HumanoidBench-DrQ">wsagi/HumanoidBench-DrQ</a></li>
+  <li>本项目相关：
+    <ul class="tight">
+      <li><code>docs/isaac_lab_g1_locomanipulation.html</code> — Isaac Lab G1 task 对照</li>
+      <li><code>docs/groot_six_decisions.html</code> — 6 决策对齐</li>
+      <li><code>docs/groot_so101_to_humanoid_migration.html</code> — sister SO-101 经验迁移</li>
+      <li><code>docs/manipulation_policy_brainstorm.html</code> — manipulation gap 12 条候选路径</li>
+      <li><code>docs/g1_training_strategies.html</code> — G1 locomotion 训练</li>
+    </ul>
+  </li>
+</ul>
+
+<p style="text-align:center; color:#888; margin-top:3em; font-size:0.85em;">
+Generated 2026-05-26 · Sourced from dependencies/humanoid-bench (MIT)
+</p>
+
+</body>
+</html>

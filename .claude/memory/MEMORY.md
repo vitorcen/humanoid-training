@@ -3,3 +3,7 @@
 - [Benchmark validation plan](project_benchmark_validation.md) — 6-step roadmap to drive ≥50% multi-run success rate on HumanoidBench tasks; resume point after compact
 - [Train with watcher](feedback_train_with_watcher.md) — long training must run alongside a slice-based auto-eval watcher with early-stop; learned from LeIsaac
 - [No secrets in memory](feedback_no_secrets_in_memory.md) — memory files are committed with the repo; never write API keys, passwords, tokens, or other secrets
+- [tmux + codex gpt-5.5](feedback_tmux_codex.md) — three traps (PATH old version · `danger-full-access` rejects gpt-5.5 · long prompts reroute); use abs path + `--dangerously-bypass-approvals-and-sandbox` + brief file
+- [TD-MPC2 multi-seed parallel](feedback_tdmpc2_multiseed.md) — N seeds = N tmux sessions on one GPU, CPU/GPU phases auto-interleave, util 15→98%, per-seed −10%, total 2.7× throughput
+- [LeRobot dataset compat](feedback_lerobot_dataset_compat.md) — needs v3.0 git tag + `~/.cache/huggingface/lerobot/<repo>/` path; mode A (sim replay) broken; use `Output.append_stdout()` for thread-safe widget updates
+- [Hydra `+` override trap](feedback_hydra_plus_override_trap.md) — `+task=foo` adds nested key, doesn't override toplevel; DrQ-v2 misfired 18 GPU-h training quadruped instead of humanoid (2026-05-27)

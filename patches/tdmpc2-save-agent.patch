@@ -1,0 +1,26 @@
+diff --git a/tdmpc2/tdmpc2/common/logger.py b/tdmpc2/tdmpc2/common/logger.py
+index cc1006b..3189301 100755
+--- a/tdmpc2/tdmpc2/common/logger.py
++++ b/tdmpc2/tdmpc2/common/logger.py
+@@ -125,7 +125,7 @@ class Logger:
+         self.entity = cfg.get("wandb_entity", "none")
+         if cfg.disable_wandb or self.project == "none" or self.entity == "none":
+             print(colored("Wandb disabled.", "blue", attrs=["bold"]))
+-            cfg.save_agent = False
++            # patches/tdmpc2-save-agent.patch: keep save_agent flag honored even without wandb
+             cfg.save_video = False
+             self._wandb = None
+             self._video = None
+diff --git a/tdmpc2/tdmpc2/trainer/online_trainer.py b/tdmpc2/tdmpc2/trainer/online_trainer.py
+index 663ae19..ba23ea3 100755
+--- a/tdmpc2/tdmpc2/trainer/online_trainer.py
++++ b/tdmpc2/tdmpc2/trainer/online_trainer.py
+@@ -83,6 +83,8 @@ class OnlineTrainer(Trainer):
+                     eval_metrics = self.eval()
+                     eval_metrics.update(self.common_metrics())
+                     self.logger.log(eval_metrics, "eval")
++                    # patches/tdmpc2-save-agent.patch: save periodic checkpoint with step id
++                    self.logger.save_agent(self.agent, identifier=f"step_{self._step:08d}")
+                     eval_next = False
+ 
+                 if self._step > 0:
