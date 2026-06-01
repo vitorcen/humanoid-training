@@ -1,10 +1,10 @@
 # humanoid-training
 
-## Init
+## Persistent memory
 
-Memory lives in-repo at `.claude/memory/`. On a fresh clone, symlink the global path once:
+Long-term memory lives in `.memory/` (one file = one fact + a `MEMORY.md` index),
+committed with the repo and shared across tools. The full protocol — recall/save format,
+type taxonomy, the never-write-secrets rule, and fresh-clone symlink setup — is imported
+below; read `.memory/MEMORY.md` at the start of a task.
 
-```bash
-G="$HOME/.claude/projects/-home-david-work-humanoid-training"
-mkdir -p "$G" && ln -sfn "$PWD/.claude/memory" "$G/memory"
-```
+@.memory/SKILL.md

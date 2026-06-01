@@ -121,6 +121,9 @@ cython_debug/
 Thumbs.db
 .lock
 
+# Claude Code (memory lives at .memory/, committed; .claude/ is local-only)
+.claude/
+
 # Project-specific
 wandb/
 runs/

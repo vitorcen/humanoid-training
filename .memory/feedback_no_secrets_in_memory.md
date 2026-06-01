@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-`.claude/memory/` 下所有文件会随项目 commit 入仓（公开仓库可被全网检索），写 memory 前**必须**确认不含：
+`.memory/` 下所有文件会随项目 commit 入仓（公开仓库可被全网检索），写 memory 前**必须**确认不含：
 - API key / access token / refresh token
 - 数据库或服务密码
 - 私有 endpoint URL 含鉴权参数

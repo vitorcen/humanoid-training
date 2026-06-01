@@ -170,7 +170,7 @@ nohup python scripts/ckpt_eval_loop.py \
 bash scripts/train_status.sh runs/h1_walk_pilot/DRQ/HBench-h1-walk-v0/r0
 ```
 
-四种诊断状态：`PROGRESS / UNDERFIT / OVERFIT / DEAD`。详见 `.claude/memory/feedback_train_with_watcher.md`。
+四种诊断状态：`PROGRESS / UNDERFIT / OVERFIT / DEAD`。详见 `.memory/feedback_train_with_watcher.md`。
 
 _Four diagnostic states: PROGRESS / UNDERFIT / OVERFIT / DEAD. See memory file for rules._
 
